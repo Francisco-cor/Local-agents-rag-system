@@ -3,6 +3,8 @@ import chromadb
 from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
 import logging
+import pypdf
+from typing import List, Dict
 
 class RAGManager:
     """
@@ -29,6 +31,27 @@ class RAGManager:
         
         # Get or Create Collection
         self.collection = self.client.get_or_create_collection(name="local_knowledge_base")
+
+    def parse_pdf(self, file_path: str) -> str:
+        """Extract text from a PDF file."""
+        text = ""
+        try:
+            reader = pypdf.PdfReader(file_path)
+            for page in reader.pages:
+                text += page.extract_text() + "\n"
+        except Exception as e:
+            self.logger.error(f"Error parsing PDF {file_path}: {e}")
+            return ""
+        return text
+
+    def parse_text_file(self, file_path: str) -> str:
+        """Extract text from a TXT/MD file."""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except Exception as e:
+            self.logger.error(f"Error parsing text file {file_path}: {e}")
+            return ""
 
     def embed_text(self, text: str):
         """Generate embedding for a single string."""

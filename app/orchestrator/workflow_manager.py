@@ -52,24 +52,44 @@ class WorkflowManager:
             "context_used": context_text
         }
 
-    def ingest_text_document(self, text: str, source_name: str):
+    def ingest_file(self, file_path: str):
         """
-        Simple ingestion wrapper.
-        Real implementation will handle chunking.
+        Ingest a file (PDF or TXT) into the vector DB.
         """
-        # Simple chunking for now (e.g. by paragraphs or fixed size)
-        # TODO: Use a proper TextSplitter in Phase 1.1
-        import uuid
-        chunks = [text] # Placeholder for chunking logic
+        import os
+        filename = os.path.basename(file_path)
+        text = ""
         
+        if file_path.lower().endswith('.pdf'):
+            self.logger.info(f"Parsing PDF: {filename}")
+            text = self.rag.parse_pdf(file_path)
+        elif file_path.lower().endswith(('.txt', '.md')):
+            self.logger.info(f"Parsing Text File: {filename}")
+            text = self.rag.parse_text_file(file_path)
+        else:
+            return f"Unsupported file type: {filename}"
+            
+        if not text:
+            return f"No text extracted from {filename}"
+            
+        # Recursive Chunking (Basic)
+        # TODO: Replace with LangChain's RecursiveCharacterTextSplitter for better results
+        chunk_size = 1000
+        overlap = 100
+        chunks = []
+        for i in range(0, len(text), chunk_size - overlap):
+            chunks.append(text[i:i + chunk_size])
+            
         count = 0
-        for chunk in chunks:
-            chunk_id = f"{source_name}_chunk_{uuid.uuid4().hex[:8]}"
+        import uuid
+        for i, chunk in enumerate(chunks):
+            chunk_id = f"{filename}_chunk_{i}_{uuid.uuid4().hex[:8]}"
             self.rag.add_document(
                 text=chunk, 
-                metadata={"source": source_name}, 
+                metadata={"source": filename, "chunk_index": i}, 
                 doc_id=chunk_id
             )
             count += 1
             
-        return count
+        self.logger.info(f"Ingested {count} chunks from {filename}")
+        return f"Successfully ingested {filename} ({count} chunks)"
