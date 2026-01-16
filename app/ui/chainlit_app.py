@@ -7,45 +7,76 @@ workflow = WorkflowManager()
 
 @cl.on_chat_start
 async def start():
-    await cl.Message(content="**🐝 Welcome to the Swarm.**\nI am ready to process your documents and queries.").send()
+    await cl.Message(content="**🐝 The Swarm is Awake.**\n\nI will use a multi-agent team (Provocateur, Critic, Synthesizer) to answer your questions.").send()
     
 @cl.on_message
 async def main(message: cl.Message):
-    # Retrieve settings (Simulated for now)
     model_name = "gemma-3-4b" 
     
-    # 1. Processing / Thinking Message
-    msg = cl.Message(content="")
-    await msg.send()
+    # We will use Chainlit Steps to show the agents
+    # The workflow.run_swarm_flow yields dictionaries with status/content
     
-    # 2. Retrieval Step (Visible thought)
-    async with cl.Step(name="Retrieval", type="tool") as step:
-        step.input = message.content
-        results = workflow.rag.search(message.content)
-        context_str = "\n".join([f"- {r['text'][:100]}..." for r in results])
-        step.output = f"Found {len(results)} relevant chunks:\n{context_str}"
+    final_response = ""
+    sources = []
     
-    # 3. Generation Step
-    # We'll stream the response from Ollama
-    # Note: WorkflowManager currently does sync generation. 
-    # For Phase 1 we will just use the sync wrapper inside an async loop.
+    # We need to map our simple "step names" to Chainlit Step objects to update them
+    active_steps = {}
     
-    response_dict = workflow.process_query(message.content, model_name=model_name)
-    response_text = response_dict["response"]
+    # Running the generator. Since it's sync, it might block the loop slightly. 
+    # ideally we wrap in make_async, but for local prototype direct call is okay-ish or we can use cl.make_async
     
-    # Stream back the final answer
-    msg.content = response_text
-    await msg.update()
+    # NOTE: Chainlit's run_sync can be used if needed, or just iterate directly if acceptable.
+    # We will iterate directly for simplicity.
     
-    # Attach sources
+    iterator = workflow.run_swarm_flow(message.content, model_name=model_name)
+    
+    for event in iterator:
+        step_type = event["step"]
+        status = event["status"]
+        
+        # Unique key for this step
+        step_key = step_type 
+        
+        if status == "running":
+            # Create a new step
+            step = cl.Step(name=step_type.capitalize(), type="process")
+            step.input = event.get("message", "Processing...")
+            await step.send()
+            active_steps[step_key] = step
+            
+        elif status == "done":
+            # Complete the step
+            if step_key in active_steps:
+                step = active_steps[step_key]
+                content = event.get("content", "")
+                
+                # Special handling for retrieval to save sources
+                if step_type == "retrieval":
+                    sources = event.get("sources", [])
+                    # Truncate for display
+                    display_text = content[:500] + "..." if len(content) > 500 else content
+                    step.output = f"Retrieved Context:\n{display_text}"
+                else:
+                    step.output = content
+                    
+                await step.update()
+                
+                # If this was the synthesizer, this is our final answer
+                if step_type == "synthesizer":
+                    final_response = content
+
+    # Send Final Message
+    msg = cl.Message(content=final_response)
+    
+    # Attach sources nicely
     source_elements = []
-    for i, source in enumerate(response_dict["sources"]):
+    for i, source in enumerate(sources):
         source_name = source.get("source", "Unknown")
-        text_content = response_dict["context_used"] # Ideally we slice the specific part
         source_elements.append(
             cl.Text(name=f"Source {i+1}", content=f"Source: {source_name}", display="inline")
         )
     
     if source_elements:
         msg.elements = source_elements
-        await msg.update()
+        
+    await msg.send()
