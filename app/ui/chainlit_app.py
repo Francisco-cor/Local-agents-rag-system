@@ -22,15 +22,32 @@ async def chat_profile():
 
 @cl.on_chat_start
 async def start():
+    # Dynamic Model Loading
+    models = workflow.engine.get_available_models()
+    default_model = models[0] if models else "gemma-3-4b"
+
+    settings = await cl.ChatSettings(
+        [
+            cl.input_widget.Select(
+                id="Model",
+                label="Active Model",
+                values=models,
+                initial_value=default_model,
+            )
+        ]
+    ).send()
+
     chat_profile = cl.user_session.get("chat_profile")
     if chat_profile == "PoetIQ":
-         await cl.Message(content="**🎣 PoetIQ Active.**\nI will generate conceptual traps to find the truth.").send()
+         await cl.Message(content=f"**🎣 PoetIQ Active.**\nTraps ready. Using model: {default_model}").send()
     else:
-        await cl.Message(content="**🐝 The Swarm is Awake.**\nTeam: Provocateur, Critic, Synthesizer.").send()
+        await cl.Message(content=f"**🐝 The Swarm is Awake.**\nTeam: Provocateur, Critic, Synthesizer.\nBase Model: {default_model}").send()
     
 @cl.on_message
 async def main(message: cl.Message):
-    model_name = "gemma-3-4b" 
+    # Retrieve settings
+    settings = cl.user_session.get("chat_settings")
+    model_name = settings["Model"] if settings else "gemma-3-4b" 
     
     # We will use Chainlit Steps to show the agents
     # The workflow.run_swarm_flow yields dictionaries with status/content
