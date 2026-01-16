@@ -26,6 +26,32 @@ class WorkflowManager:
         2. Format prompt
         3. Generate response (GPU)
         """
+        # 0. Intercept for PoetIQ Variant
+        if "(PoetIQ)" in model_name:
+            # Strip the tag to get the base model
+            base_model = model_name.replace(" (PoetIQ)", "")
+            self.logger.info(f"Routing to Deep Reasoning Flow for {base_model}")
+            
+            # Since process_query is expected to return a dict synchronous result,
+            # we consume the generator here.
+            final_res = ""
+            sources = []
+            context_used = ""
+            
+            # Run the generator
+            for step in self.advanced.run_deep_reasoning_flow(query, base_model):
+                if step["step"] == "retrieval" and step["status"] == "done":
+                    context_used = step["content"]
+                    sources = step.get("sources", [])
+                if step.get("content"):
+                    final_res = step["content"]
+            
+            return {
+                "response": final_res,
+                "sources": sources,
+                "context_used": context_used + "\n[Processed via PoetIQ System v2]"
+            }
+
         # 1. Retrieval
         self.logger.info(f"Retrieving context for: {query}")
         results = self.rag.search(query, n_results=3)

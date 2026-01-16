@@ -56,11 +56,11 @@ col_a, col_b = st.columns(2)
 
 with col_a:
     st.info("🥊 CONTENDER A")
-    current_model_a = st.selectbox("Select Model", ["gemma-3-4b", "qwen3", "ministral-3b"], index=0, key="model_a_select", label_visibility="collapsed")
+    current_model_a = st.selectbox("Select Model", ["gemma-3-4b", "gemma-3-4b (PoetIQ)", "qwen3", "qwen3 (PoetIQ)", "ministral-3b"], index=0, key="model_a_select", label_visibility="collapsed")
     
 with col_b:
     st.info("🥊 CONTENDER B")
-    current_model_b = st.selectbox("Select Model", ["gemma-3-4b", "qwen3", "ministral-3b"], index=1, key="model_b_select", label_visibility="collapsed")
+    current_model_b = st.selectbox("Select Model", ["gemma-3-4b", "gemma-3-4b (PoetIQ)", "qwen3", "qwen3 (PoetIQ)", "ministral-3b"], index=2, key="model_b_select", label_visibility="collapsed")
 
 query = st.text_input("📝 Challenge Prompt:", placeholder="E.g., Compare the philosophies of Stoicism and Epicureanism...")
 start_btn = st.button("⚔️ FIGHT! ⚔️", type="primary", use_container_width=True)
