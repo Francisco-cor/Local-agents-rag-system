@@ -5,9 +5,28 @@ from app.orchestrator.workflow_manager import WorkflowManager
 # Chainlit reloads per session, so we can init here or in on_chat_start
 workflow = WorkflowManager()
 
+@cl.set_chat_profiles
+async def chat_profile():
+    return [
+        cl.ChatProfile(
+            name="Swarm",
+            markdown_description="**The Swarm**: Provocateur, Critic, and Synthesizer agents.",
+            icon="🐝",
+        ),
+        cl.ChatProfile(
+            name="PoetIQ",
+            markdown_description="**PoetIQ**: Uses Cunningham's Law (Traps) for better retrieval.",
+            icon="🎣",
+        ),
+    ]
+
 @cl.on_chat_start
 async def start():
-    await cl.Message(content="**🐝 The Swarm is Awake.**\n\nI will use a multi-agent team (Provocateur, Critic, Synthesizer) to answer your questions.").send()
+    chat_profile = cl.user_session.get("chat_profile")
+    if chat_profile == "PoetIQ":
+         await cl.Message(content="**🎣 PoetIQ Active.**\nI will generate conceptual traps to find the truth.").send()
+    else:
+        await cl.Message(content="**🐝 The Swarm is Awake.**\nTeam: Provocateur, Critic, Synthesizer.").send()
     
 @cl.on_message
 async def main(message: cl.Message):
@@ -28,7 +47,15 @@ async def main(message: cl.Message):
     # NOTE: Chainlit's run_sync can be used if needed, or just iterate directly if acceptable.
     # We will iterate directly for simplicity.
     
-    iterator = workflow.run_swarm_flow(message.content, model_name=model_name)
+    
+    # Check Profile
+    chat_profile = cl.user_session.get("chat_profile")
+    
+    if chat_profile == "PoetIQ":
+        iterator = workflow.run_poetiq_flow(message.content, model_name=model_name)
+    else:
+        # Default Swarm
+        iterator = workflow.run_swarm_flow(message.content, model_name=model_name)
     
     for event in iterator:
         step_type = event["step"]

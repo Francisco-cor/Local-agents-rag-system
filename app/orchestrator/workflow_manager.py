@@ -1,6 +1,7 @@
 from app.cpu.rag_manager import RAGManager
 from app.gpu.inference_engine import InferenceEngine
 from app.orchestrator.agent_prompts import PROMPT_PROVOCATEUR, PROMPT_CRITIC, PROMPT_SYNTHESIZER
+from app.orchestrator.advanced_engine import AdvancedEngine
 import logging
 from typing import Generator, Dict, Any
 
@@ -13,8 +14,10 @@ class WorkflowManager:
         self.logger.setLevel(logging.INFO)
         
         self.logger.info("Initializing Workflow Manager...")
+        self.logger.info("Initializing Workflow Manager...")
         self.rag = RAGManager()
         self.engine = InferenceEngine()
+        self.advanced = AdvancedEngine(self.rag, self.engine)
 
     def process_query(self, query: str, model_name: str = "gemma-3-4b"):
         """
@@ -132,3 +135,9 @@ class WorkflowManager:
         prompt_s = PROMPT_SYNTHESIZER.format(question=query, draft=draft, critique=critique)
         final_response = self.engine.generate(model=model_name, prompt=prompt_s, options={"temperature": 0.3}) # Balanced
         yield {"step": "synthesizer", "status": "done", "content": final_response}
+
+    def run_poetiq_flow(self, query: str, model_name: str = "gemma-3-4b") -> Generator[Dict[str, Any], None, None]:
+        """
+        Wrapper for PoetIQ flow.
+        """
+        yield from self.advanced.run_poetiq_rag(query, model_name)
