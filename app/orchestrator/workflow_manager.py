@@ -2,6 +2,7 @@ from app.cpu.rag_manager import RAGManager
 from app.gpu.inference_engine import InferenceEngine
 from app.orchestrator.agent_prompts import PROMPT_PROVOCATEUR, PROMPT_CRITIC, PROMPT_SYNTHESIZER
 from app.orchestrator.advanced_engine import AdvancedEngine
+from app.cpu.cache_manager import SemanticCache
 import logging
 from typing import Generator, Dict, Any
 
@@ -18,14 +19,24 @@ class WorkflowManager:
         self.rag = RAGManager()
         self.engine = InferenceEngine()
         self.advanced = AdvancedEngine(self.rag, self.engine)
+        self.cache = SemanticCache(self.rag)
 
     def process_query(self, query: str, model_name: str = "gemma-3-4b"):
         """
         Standard RAG Flow:
-        1. Retrieve context (CPU)
-        2. Format prompt
-        3. Generate response (GPU)
+        1. Check Cache
+        2. Retrieve context (CPU)
+        3. Format prompt
+        4. Generate response (GPU)
         """
+        # 0. Check Semantic Cache (Fast Path)
+        cached = self.cache.get_cached_response(query)
+        if cached:
+            return {
+                "response": cached,
+                "sources": [{"source": "Semantic Cache"}],
+                "context_used": "Fetched directly from Memory (0ms latency)"
+            }
         # 0. Intercept for PoetIQ Variant
         if "(PoetIQ)" in model_name:
             # Strip the tag to get the base model
@@ -76,6 +87,9 @@ class WorkflowManager:
             prompt=query,
             system_context=system_prompt
         )
+        
+        # 4. Cache Update
+        self.cache.cache_response(query, response)
         
         return {
             "response": response,

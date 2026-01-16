@@ -43,24 +43,55 @@ st.sidebar.divider()
 st.sidebar.subheader("🖥️ Resources")
 cpu_bar = st.sidebar.progress(0, text="CPU")
 ram_bar = st.sidebar.progress(0, text="RAM")
+gpu_bar = st.sidebar.empty() # Placeholder for GPU
+
+# Try initializing GPU
+try:
+    import GPUtil
+    gpus = GPUtil.getGPUs()
+    gpu_available = len(gpus) > 0
+except ImportError:
+    gpu_available = False
+
 cpu_percent = psutil.cpu_percent()
 ram_percent = psutil.virtual_memory().percent
-cpu_bar.progress(cpu_percent / 100, text=f"CPU: {cpu_percent}%")
-ram_bar.progress(ram_percent / 100, text=f"RAM: {ram_percent}%")
+cpu_bar.progress(min(cpu_percent / 100.0, 1.0), text=f"CPU: {cpu_percent}%")
+ram_bar.progress(min(ram_percent / 100.0, 1.0), text=f"RAM: {ram_percent}%")
+
+if gpu_available:
+    try:
+        gpu = GPUtil.getGPUs()[0] # Monitor first GPU
+        vram_percent = (gpu.memoryUsed / gpu.memoryTotal)
+        gpu_bar.progress(min(vram_percent, 1.0), text=f"GPU VRAM: {gpu.memoryUsed:.0f}MB / {gpu.memoryTotal:.0f}MB")
+    except Exception:
+        gpu_bar.text("GPU Monitor Error")
+else:
+    gpu_bar.text("GPU Monitor: N/A")
 
 # Main Arena
 st.title("🏟️ LLM GLADIATOR ARENA")
 st.caption("Detailed RAG Comparison. Vote to update Elo ratings.")
 
+# Fetch Dynamic Model List
+with st.spinner("Talking to Ollama..."):
+    base_models = st.session_state.workflow.engine.get_available_models()
+    # Add PoetIQ variants
+    poetiq_variants = [f"{m} (PoetIQ)" for m in base_models]
+    all_models = base_models + poetiq_variants
+
 col_a, col_b = st.columns(2)
 
 with col_a:
     st.info("🥊 CONTENDER A")
-    current_model_a = st.selectbox("Select Model", ["gemma-3-4b", "gemma-3-4b (PoetIQ)", "qwen3", "qwen3 (PoetIQ)", "ministral-3b"], index=0, key="model_a_select", label_visibility="collapsed")
+    # Default to first model if available
+    idx_a = 0
+    current_model_a = st.selectbox("Select Model", all_models, index=idx_a, key="model_a_select", label_visibility="collapsed")
     
 with col_b:
     st.info("🥊 CONTENDER B")
-    current_model_b = st.selectbox("Select Model", ["gemma-3-4b", "gemma-3-4b (PoetIQ)", "qwen3", "qwen3 (PoetIQ)", "ministral-3b"], index=2, key="model_b_select", label_visibility="collapsed")
+    # Default to second model if available, else first
+    idx_b = 1 if len(all_models) > 1 else 0
+    current_model_b = st.selectbox("Select Model", all_models, index=idx_b, key="model_b_select", label_visibility="collapsed")
 
 query = st.text_input("📝 Challenge Prompt:", placeholder="E.g., Compare the philosophies of Stoicism and Epicureanism...")
 start_btn = st.button("⚔️ FIGHT! ⚔️", type="primary", use_container_width=True)

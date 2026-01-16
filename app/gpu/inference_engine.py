@@ -78,8 +78,18 @@ class InferenceEngine:
             self.logger.error(f"Inference Stream Error: {e}")
             yield f"Error computing stream: {str(e)}"
             
-    def list_models(self):
+    def get_available_models(self) -> List[str]:
+        """
+        Returns a list of model names available in Ollama.
+        """
         try:
-            return ollama.list()
-        except Exception as e:
+            models_info = ollama.list()
+            # Ollama list structure: {'models': [{'name': 'gemma:latest', ...}, ...]}
+            # Or simplified list depending on version. We handle the dict response.
+            if 'models' in models_info:
+                return [m['name'] for m in models_info['models']]
             return []
+        except Exception as e:
+            self.logger.error(f"Error listing models: {e}")
+            # Fallback defaults if offline
+            return ["gemma-3-4b", "qwen3", "ministral-3b"]
