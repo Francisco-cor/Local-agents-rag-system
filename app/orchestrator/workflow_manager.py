@@ -116,12 +116,10 @@ class WorkflowManager:
         if not text:
             return f"No text extracted from {filename}"
             
-        # Recursive Chunking (Basic)
-        chunk_size = 1000
-        overlap = 100
-        chunks = []
-        for i in range(0, len(text), chunk_size - overlap):
-            chunks.append(text[i:i + chunk_size])
+        # Recursive Chunking
+        from app.cpu.rag_manager import RecursiveTextSplitter
+        splitter = RecursiveTextSplitter(chunk_size=1000, chunk_overlap=150)
+        chunks = splitter.split_text(text)
             
         # Prepare Batch
         texts = []
@@ -137,7 +135,7 @@ class WorkflowManager:
         # Batch Ingest
         self.rag.add_documents(texts=texts, metadatas=metadatas, ids=ids)
             
-        self.logger.info(f"Ingested {len(chunks)} chunks from {filename}")
+        self.logger.info(f"Ingested {len(chunks)} chunks from {filename} using Recursive Splitter")
         return f"Successfully ingested {filename} ({len(chunks)} chunks)"
 
     async def run_swarm_flow(self, query: str, model_name: str = "gemma-3-4b") -> AsyncGenerator[Dict[str, Any], None]:
