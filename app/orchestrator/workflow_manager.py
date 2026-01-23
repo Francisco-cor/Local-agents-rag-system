@@ -43,24 +43,24 @@ class WorkflowManager:
         if "(PoetIQ)" in model_name:
             # Strip the tag to get the base model
             base_model = model_name.replace(" (PoetIQ)", "")
-            self.logger.info(f"Routing to Deep Reasoning Flow for {base_model}")
+            self.logger.info(f"Routing to Refined PoetIQ Flow for {base_model}")
             
             final_res = ""
             sources = []
             context_used = ""
             
             # Use async generator
-            async for step in self.advanced.run_deep_reasoning_flow(query, base_model):
+            async for step in self.run_poetiq_flow(query, base_model):
                 if step["step"] == "retrieval" and step["status"] == "done":
                     context_used = step["content"]
                     sources = step.get("sources", [])
-                if step.get("content"):
+                if step["step"] == "final_output":
                     final_res = step["content"]
             
             return {
                 "response": final_res,
                 "sources": sources,
-                "context_used": context_used + "\n[Processed via PoetIQ System v2]"
+                "context_used": context_used + "\n[Processed via Refined PoetIQ System]"
             }
 
         # 1. Retrieval - USE PRE-COMPUTED EMBEDDING

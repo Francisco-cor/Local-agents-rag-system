@@ -17,43 +17,54 @@ class AdvancedEngine:
 
     async def run_poetiq_rag(self, query: str, model_name: str) -> AsyncGenerator[Dict, None]:
         """
-        Implementation of PoetIQ (Asynchronous).
+        Refined PoetIQ (Systemic Reasoning Flow):
+        1. Retrieval
+        2. Initial Hypothesis
+        3. Critique
+        4. Final Refinement
         """
-        # Step 1: Trap Generation
-        yield {"step": "poet_trap", "status": "running", "message": "🎣 Generating Cunningham Trap..."}
-        
-        trap_prompt = (
-            f"Topic: {query}\n"
-            "Task: Write a single sentence that makes a plausible but FACTUALLY INCORRECT statement about this topic. "
-            "It should sound like a common misconception. Do not explain."
-        )
-        
-        trap_statement = await self.infer.async_generate(model_name, trap_prompt, options={"temperature": 0.9, "num_predict": 100})
-        yield {"step": "poet_trap", "status": "done", "content": trap_statement}
-        
-        # Step 2: Correction Retrieval
-        yield {"step": "retrieval", "status": "running", "message": f"🔍 Searching context for the trap: '{trap_statement}'..."}
-        
-        results = self.rag.search(trap_statement, n_results=3)
-        context_text = ""
-        for res in results:
-            context_text += f"---\n{res['text']}\n"
-            
+        # Step 1: Retrieval
+        yield {"step": "retrieval", "status": "running", "message": "🔍 Searching knowledge base..."}
+        results = self.rag.search(query, n_results=5)
+        context_text = "\n".join([f"---\n{r['text']}" for r in results])
         yield {"step": "retrieval", "status": "done", "content": context_text, "sources": [r['metadata'] for r in results]}
-        
-        # Step 3: Final Resolution
-        yield {"step": "synthesizer", "status": "running", "message": "✨ Resolving truth from the lie..."}
-        
-        poet_prompt = (
-            f"User Question: {query}\n"
-            f"Common Misconception (Trap): {trap_statement}\n"
-            f"Retrieved Facts: {context_text}\n\n"
-            "Task: Answer the User Question. You may use the Trap to contrast the truth, "
-            "but your primary goal is to provide the correct answer based on the Retrieved Facts."
+
+        # Step 2: Initial Hypothesis
+        yield {"step": "hypothesis", "status": "running", "message": "💡 Generating initial best response..."}
+        hypo_prompt = (
+            f"Context:\n{context_text}\n\n"
+            f"Question: {query}\n"
+            "Task: Provide a detailed and accurate answer based strictly on the context."
         )
-        
-        final_response = await self.infer.async_generate(model_name, poet_prompt, options={"temperature": 0.3})
-        yield {"step": "synthesizer", "status": "done", "content": final_response}
+        hypothesis = await self.infer.async_generate(model_name, hypo_prompt, options={"temperature": 0.3})
+        yield {"step": "hypothesis", "status": "done", "content": hypothesis}
+
+        # Step 3: Critique
+        yield {"step": "critique", "status": "running", "message": "🛡️ Auditing for mistakes or missing info..."}
+        critique_prompt = (
+            f"Question: {query}\n"
+            f"Draft Answer: {hypothesis}\n"
+            f"Reference Context: {context_text}\n"
+            "Task: Identify any factual errors, omissions, or logical inconsistencies. "
+            "If the answer is perfect, say 'PASS'. Otherwise, list improvements."
+        )
+        critique = await self.infer.async_generate(model_name, critique_prompt, options={"temperature": 0.1})
+        yield {"step": "critique", "status": "done", "content": critique}
+
+        # Step 4: Final Refinement
+        if "PASS" in critique.upper() and len(critique) < 50:
+            yield {"step": "final_output", "status": "done", "content": hypothesis}
+        else:
+            yield {"step": "refinement", "status": "running", "message": "💎 Polishing final answer..."}
+            refine_prompt = (
+                f"Question: {query}\n"
+                f"Draft: {hypothesis}\n"
+                f"Critique: {critique}\n"
+                "Task: Rewrite the answer to be perfect, addressing all critique points."
+            )
+            final_answer = await self.infer.async_generate(model_name, refine_prompt, options={"temperature": 0.2})
+            yield {"step": "refinement", "status": "done", "content": final_answer}
+            yield {"step": "final_output", "status": "done", "content": final_answer}
 
     async def run_consensus(self, query: str, context: str, models: List[str] = ["gemma-3-4b", "qwen3", "ministral-3b"]) -> AsyncGenerator[Dict, None]:
         """

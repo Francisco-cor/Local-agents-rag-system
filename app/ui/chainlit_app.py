@@ -26,7 +26,8 @@ async def start():
     models = workflow.engine.get_available_models()
     default_model = models[0] if models else "gemma-3-4b"
 
-    settings = await cl.ChatSettings(
+    # Persistent Settings Selector
+    await cl.ChatSettings(
         [
             cl.input_widget.Select(
                 id="Model",
@@ -39,15 +40,15 @@ async def start():
 
     current_profile = cl.user_session.get("chat_profile")
     if current_profile == "PoetIQ":
-         await cl.Message(content=f"**PoetIQ Layer Active.**\nContextual retrieval optimized. Active model: {default_model}").send()
+         await cl.Message(content=f"**PoetIQ Layer Active.**\nRefinement loop enabled. Select model in settings.").send()
     else:
-        await cl.Message(content=f"**Multi-Agent Swarm Initialized.**\nAgent Ensemble: Provocateur, Critic, Synthesizer.\nBase Model: {default_model}").send()
+        await cl.Message(content=f"**Multi-Agent Swarm Initialized.**\nAgent Ensemble: Provocateur, Critic, Synthesizer.").send()
     
 @cl.on_message
 async def main(message: cl.Message):
-    # Retrieve session settings
+    # Retrieve session settings (ALWAYS get latest selection)
     settings = cl.user_session.get("chat_settings")
-    model_name = settings["Model"] if settings else "gemma-3-4b" 
+    model_name = settings["Model"] if settings and "Model" in settings else "gemma-3-4b" 
     
     final_response = ""
     sources = []
