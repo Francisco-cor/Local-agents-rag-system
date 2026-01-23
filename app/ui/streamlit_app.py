@@ -38,7 +38,7 @@ if "last_battle" not in st.session_state:
 st.sidebar.title("Leaderboard")
 leaderboard = st.session_state.battle_manager.get_leaderboard()
 df = pd.DataFrame(leaderboard)
-st.sidebar.dataframe(df.set_index("rank"), hide_index=False, use_container_width=True)
+st.sidebar.dataframe(df.set_index("rank"), hide_index=False, width="stretch")
 
 st.sidebar.divider()
 st.sidebar.subheader("System Resources")
@@ -94,87 +94,105 @@ with col_b:
     current_model_b = st.selectbox("Select Model", all_models, index=idx_b, key="model_b_select", label_visibility="collapsed")
 
 query = st.text_input("Enter Challenge Prompt:", placeholder="e.g., Explain the core principles of quantum computing...")
-start_btn = st.button("Initiate Evaluation", type="primary", use_container_width=True)
+start_btn = st.button("Initiate Evaluation", type="primary", width="stretch")
 
 if start_btn and query:
-    if current_model_a == current_model_b:
-        st.warning("Please select distinct models for a valid comparison.")
-    else:
-        st.divider()
-        workflow = st.session_state.workflow
-        
-        # 1. Retrieval (Shared Context Extraction)
-        with st.status("Retrieving shared context...", expanded=False) as status:
-            context_results = workflow.rag.search(query)
-            status.update(label="Context Retrieval Complete", state="complete")
-        
-        # 2. Response Generation (Sequential execution for VRAM optimization)
-        
-        # Contender A Generation
-        status_a = st.empty()
-        status_a.info(f"Generating response from {current_model_a}...")
-        start_a = time.time()
-        res_a = asyncio.run(workflow.process_query(query, model_name=current_model_a))
-        time_a = time.time() - start_a
-        status_a.empty()
+        if current_model_a == current_model_b:
+            st.warning("Please select distinct models for a valid comparison.")
+        else:
+            st.divider()
+            workflow = st.session_state.workflow
+            
+            # Response Generation (Sequential for VRAM optimization, but in a single loop)
+            c1, c2 = st.columns(2)
+            
+            with c1:
+                st.subheader(f"{current_model_a}")
+                inner_placeholder_a = st.empty()
+                inner_placeholder_a.info(f"{current_model_a} is thinking...")
 
-        # Contender B Generation
-        status_b = st.empty()
-        status_b.info(f"Generating response from {current_model_b}...")
-        start_b = time.time()
-        res_b = asyncio.run(workflow.process_query(query, model_name=current_model_b))
-        time_b = time.time() - start_b
-        status_b.empty()
+            with c2:
+                st.subheader(f"{current_model_b}")
+                inner_placeholder_b = st.empty()
+                inner_placeholder_b.info(f"{current_model_b} is thinking...")
 
-        # Update Session State for evaluation
-        st.session_state.last_battle = {
-            "query": query,
-            "model_a": current_model_a,
-            "model_b": current_model_b,
-            "res_a": res_a,
-            "res_b": res_b,
-            "time_a": time_a,
-            "time_b": time_b,
-            "voted": False
-        }
+            async def run_arena_sequential():
+                # Task A
+                start_a = time.time()
+                full_res_a = ""
+                async for event in workflow.run_raw_flow(query, model_name=current_model_a):
+                    if event["status"] == "streaming":
+                        full_res_a = event["content"]
+                        inner_placeholder_a.markdown(full_res_a + "▌")
+                    elif event["status"] == "done":
+                        full_res_a = event["content"]
+                        inner_placeholder_a.markdown(full_res_a)
+                time_a = time.time() - start_a
+                
+                # Task B
+                start_b = time.time()
+                full_res_b = ""
+                inner_placeholder_b.info(f"{current_model_b} is thinking...")
+                async for event in workflow.run_raw_flow(query, model_name=current_model_b):
+                    if event["status"] == "streaming":
+                        full_res_b = event["content"]
+                        inner_placeholder_b.markdown(full_res_b + "▌")
+                    elif event["status"] == "done":
+                        full_res_b = event["content"]
+                        inner_placeholder_b.markdown(full_res_b)
+                time_b = time.time() - start_b
+                
+                return (full_res_a, time_a), (full_res_b, time_b)
+
+            # Single asyncio.run to keep life cycle simple
+            (full_res_a, time_a), (full_res_b, time_b) = asyncio.run(run_arena_sequential())
+            
+            with c1: st.caption(f"Inference Time: {time_a:.2f}s")
+            with c2: st.caption(f"Inference Time: {time_b:.2f}s")
+
+            # Update Session State for evaluation ranking
+            st.session_state.last_battle = {
+                "query": query,
+                "model_a": current_model_a,
+                "model_b": current_model_b,
+                "res_a": {"response": full_res_a},
+                "res_b": {"response": full_res_b},
+                "time_a": time_a,
+                "time_b": time_b,
+                "voted": False
+            }
 
 # Render Evaluation Results & Voting
 if st.session_state.last_battle:
     battle = st.session_state.last_battle
     
-    c1, c2 = st.columns(2)
-    
-    with c1:
-        st.subheader(f"{battle['model_a']}")
-        st.caption(f"Inference Time: {battle['time_a']:.2f}s")
-        st.markdown(battle['res_a']['response'])
-        with st.expander("Reference Context"):
-            st.json(battle['res_a']['sources'])
+    # If already voted, we need to re-render the static content
+    if battle["voted"]:
+        c1, c2 = st.columns(2)
+        with c1:
+            st.subheader(f"{battle['model_a']}")
+            st.markdown(battle['res_a']['response'])
+        with c2:
+            st.subheader(f"{battle['model_b']}")
+            st.markdown(battle['res_b']['response'])
 
-    with c2:
-        st.subheader(f"{battle['model_b']}")
-        st.caption(f"Inference Time: {battle['time_b']:.2f}s")
-        st.markdown(battle['res_b']['response'])
-        with st.expander("Reference Context"):
-            st.json(battle['res_b']['sources'])
-            
     # Evaluation Recording Section
     st.divider()
     if not battle["voted"]:
         st.write("### Record Evaluation Result")
         b1, b2, b3 = st.columns([1,1,1])
         
-        if b1.button(f"{battle['model_a']} Superior"):
+        if b1.button(f"{battle['model_a']} Superior", width="stretch"):
             st.session_state.battle_manager.record_match(battle['model_a'], battle['model_b'], "A")
             battle["voted"] = True
             st.rerun()
             
-        if b2.button("Equivalent Performance"):
+        if b2.button("Equivalent Performance", width="stretch"):
             st.session_state.battle_manager.record_match(battle['model_a'], battle['model_b'], "tie")
             battle["voted"] = True
             st.rerun()
             
-        if b3.button(f"{battle['model_b']} Superior"):
+        if b3.button(f"{battle['model_b']} Superior", width="stretch"):
             st.session_state.battle_manager.record_match(battle['model_a'], battle['model_b'], "B")
             battle["voted"] = True
             st.rerun()

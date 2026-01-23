@@ -31,12 +31,12 @@ class WorkflowManager:
         4. Generate response (GPU)
         """
         # 0. Check Semantic Cache (Fast Path) - REUSES EMBEDDING
-        cached, embedding = self.cache.get_cached_response(query)
+        cached, embedding = self.cache.get_cached_response(query, model_name)
         if cached:
             return {
                 "response": cached,
                 "sources": [{"source": "Semantic Cache"}],
-                "context_used": "Fetched directly from Memory (0ms latency)"
+                "context_used": f"Fetched directly from Memory for {model_name} (0ms latency)"
             }
             
         # 0. Intercept for PoetIQ Variant
@@ -89,7 +89,7 @@ class WorkflowManager:
         )
         
         # 4. Cache Update
-        self.cache.cache_response(query, response)
+        self.cache.cache_response(query, response, model_name)
         
         return {
             "response": response,
@@ -217,4 +217,17 @@ class WorkflowManager:
             system_context=system_prompt
         )
         
-        yield {"step": "final_output", "status": "done", "content": response}
+    async def run_raw_flow(self, query: str, model_name: str = "gemma-3-4b") -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Pure Model Inference without RAG or Cache (Asynchronous Generator for UI).
+        Used for Arena evaluations.
+        """
+        yield {"step": "final_output", "status": "running", "message": f"{model_name} is thinking..."}
+        
+        full_response = ""
+        async for chunk in self.engine.async_generate_stream(model=model_name, prompt=query):
+            full_response += chunk
+            # We yield the partial response so UI can stream it
+            yield {"step": "final_output", "status": "streaming", "content": full_response}
+        
+        yield {"step": "final_output", "status": "done", "content": full_response}

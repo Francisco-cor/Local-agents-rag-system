@@ -24,13 +24,14 @@ class SemanticCache:
         # Note: Chroma uses Distance, not Similarity. 0 = identical. 
         # 0.1 is very close. 0.3 is loosely related.
         
-    def get_cached_response(self, query: str) -> tuple[Optional[str], Optional[list[float]]]:
-        """Check cache for similar query. Returns (response, embedding)."""
+    def get_cached_response(self, query: str, model_name: str) -> tuple[Optional[str], Optional[list[float]]]:
+        """Check cache for similar query for a specific model. Returns (response, embedding)."""
         embedding = self.rag.embed_text(query)
         
         results = self.collection.query(
             query_embeddings=[embedding],
-            n_results=1
+            n_results=1,
+            where={"model": model_name}
         )
         
         if not results['ids'] or not results['ids'][0]:
@@ -39,24 +40,24 @@ class SemanticCache:
         distance = results['distances'][0][0]
         cached_content = results['documents'][0][0]
         
-        self.logger.info(f"Cache check: distance={distance:.4f}")
+        self.logger.info(f"Cache check for {model_name}: distance={distance:.4f}")
         
         if distance < self.threshold:
-            self.logger.info("⚡ Cache Hit!")
+            self.logger.info(f"⚡ Cache Hit for {model_name}!")
             return cached_content, embedding
         
         return None, embedding
 
-    def cache_response(self, query: str, response: str):
-        """Store valid response in cache."""
+    def cache_response(self, query: str, response: str, model_name: str):
+        """Store valid response in cache with model metadata."""
         embedding = self.rag.embed_text(query)
-        # Use simple hash for ID
-        doc_id = hashlib.md5(query.encode()).hexdigest()
+        # Use simple hash for ID, but include model name to ensure unique entries
+        doc_id = hashlib.md5(f"{model_name}:{query}".encode()).hexdigest()
         
         self.collection.add(
             ids=[doc_id],
             embeddings=[embedding],
             documents=[response],
-            metadatas=[{"original_query": query}]
+            metadatas=[{"original_query": query, "model": model_name}]
         )
-        self.logger.info("Stored response in cache.")
+        self.logger.info(f"Stored response in cache for {model_name}.")

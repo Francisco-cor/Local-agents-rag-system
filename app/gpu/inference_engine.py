@@ -18,7 +18,8 @@ class InferenceEngine:
         # Ideally we configure the client, but the current library is a simple wrapper.
         # We assume Ollama is running externally.
         self.base_url = base_url
-        self.async_client = ollama.AsyncClient(host=self.base_url)
+        # We don't store the async client here because it's tied to an event loop.
+        # Streamlit creates multiple event loops with asyncio.run().
 
     def generate(self, model: str, prompt: str, system_context: str = "", options: Dict[str, Any] = None) -> str:
         """
@@ -59,7 +60,8 @@ class InferenceEngine:
         
         try:
             self.logger.info(f"Generating (async) with {model}...")
-            response = await self.async_client.chat(
+            client = ollama.AsyncClient(host=self.base_url)
+            response = await client.chat(
                 model=model,
                 messages=messages,
                 options=options,
@@ -115,7 +117,8 @@ class InferenceEngine:
         
         try:
             self.logger.info(f"Streaming (async) with {model}...")
-            stream = await self.async_client.chat(
+            client = ollama.AsyncClient(host=self.base_url)
+            stream = await client.chat(
                 model=model,
                 messages=messages,
                 options=options,

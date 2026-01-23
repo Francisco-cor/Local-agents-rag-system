@@ -19,24 +19,46 @@ class BattleManager:
         self.inference = InferenceEngine()
         self.ratings = self._load_ratings()
 
-    def _load_ratings(self) -> Dict[str, float]:
-        """Load ratings from JSON or initialize defaults."""
-        if os.path.exists(self.data_path):
-            with open(self.data_path, 'r') as f:
-                return json.load(f)
-        else:
-            # Default starting Elo
-            return {
-                "gemma-3-4b": 1000.0,
-                "qwen3": 1000.0,
-                "ministral-3b": 1000.0
-            }
-
     def _save_ratings(self):
         """Save current ratings to JSON."""
         os.makedirs(os.path.dirname(self.data_path), exist_ok=True)
         with open(self.data_path, 'w') as f:
             json.dump(self.ratings, f, indent=2)
+
+    def _load_ratings(self) -> Dict[str, float]:
+        """Load ratings from JSON and synchronize with available Ollama models."""
+        existing_ratings = {}
+        if os.path.exists(self.data_path):
+            try:
+                with open(self.data_path, 'r') as f:
+                    existing_ratings = json.load(f)
+            except Exception as e:
+                self.logger.error(f"Error loading ratings: {e}")
+
+        # Get current models from Ollama
+        available_models = self.inference.get_available_models()
+        self.logger.info(f"Synchronizing leaderboard with {len(available_models)} Ollama models.")
+
+        # Sync: Only keep models that are currently available in Ollama
+        synced_ratings = {}
+        updated = False
+        
+        for model in available_models:
+            if model in existing_ratings:
+                synced_ratings[model] = existing_ratings[model]
+            else:
+                synced_ratings[model] = 1000.0
+                updated = True
+        
+        # Check if any old models were removed
+        if len(synced_ratings) != len(existing_ratings):
+            updated = True
+
+        if updated or not os.path.exists(self.data_path):
+            self.ratings = synced_ratings
+            self._save_ratings()
+            
+        return synced_ratings
 
     def get_leaderboard(self) -> List[Dict]:
         """Return sorted leaderboard."""
