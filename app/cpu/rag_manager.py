@@ -55,10 +55,8 @@ class RAGManager:
 
     def embed_text(self, text: str):
         """Generate embedding for a single string."""
-        # Nomic specific prefix if needed, usually handled by model card instructions but keeping it simple for now
-        # For nomic-embed-text-v1.5, instruction prefix is often 'search_document: ' or 'search_query: '
-        # We will assume raw text for now or add prefixes in higher logic if needed.
-        return self.embedder.encode(text, convert_to_list=True)
+        embedding = self.embedder.encode(text)
+        return embedding.tolist() if hasattr(embedding, 'tolist') else list(embedding)
 
     def add_document(self, text: str, metadata: dict, doc_id: str, embedding: List[float] = None):
         """Add a document chunk to the vector DB."""
@@ -82,7 +80,11 @@ class RAGManager:
             return False
             
         # Batch embedding
-        embeddings = self.embedder.encode(texts, convert_to_list=True)
+        embeddings = self.embedder.encode(texts)
+        if hasattr(embeddings, 'tolist'):
+            embeddings = embeddings.tolist()
+        else:
+            embeddings = [e.tolist() if hasattr(e, 'tolist') else list(e) for e in embeddings]
         
         self.collection.add(
             documents=texts,
@@ -95,7 +97,11 @@ class RAGManager:
     def search(self, query: str, n_results: int = 5, query_embedding: List[float] = None):
         """Search for relevant documents."""
         if query_embedding is None:
-            query_embedding = self.embedder.encode(query, convert_to_list=True)
+            query_embedding = self.embedder.encode(query)
+            if hasattr(query_embedding, 'tolist'):
+                query_embedding = query_embedding.tolist()
+            else:
+                query_embedding = list(query_embedding)
         
         results = self.collection.query(
             query_embeddings=[query_embedding],

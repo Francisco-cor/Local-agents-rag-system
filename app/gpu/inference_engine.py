@@ -133,10 +133,11 @@ class InferenceEngine:
         """
         try:
             models_info = ollama.list()
-            # Ollama list structure: {'models': [{'name': 'gemma:latest', ...}, ...]}
-            # Or simplified list depending on version. We handle the dict response.
-            if 'models' in models_info:
-                return [m['name'] for m in models_info['models']]
+            # Handle different Ollama client response formats
+            if isinstance(models_info, dict) and 'models' in models_info:
+                return [m.get('name', m.get('model', '')) for m in models_info['models'] if m.get('name') or m.get('model')]
+            elif hasattr(models_info, 'models'):
+                return [getattr(m, 'name', getattr(m, 'model', '')) for m in models_info.models]
             return []
         except Exception as e:
             self.logger.error(f"Error listing models: {e}")
