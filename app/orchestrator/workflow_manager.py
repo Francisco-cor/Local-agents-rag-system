@@ -1,10 +1,12 @@
+import os
+import uuid
+import logging
+from typing import Generator, Dict, Any, AsyncGenerator
 from app.cpu.rag_manager import RAGManager
 from app.gpu.inference_engine import InferenceEngine
 from app.orchestrator.agent_prompts import PROMPT_PROVOCATEUR, PROMPT_CRITIC, PROMPT_SYNTHESIZER
 from app.orchestrator.advanced_engine import AdvancedEngine
 from app.cpu.cache_manager import SemanticCache
-import logging
-from typing import Generator, Dict, Any
 
 class WorkflowManager:
     """
@@ -15,42 +17,40 @@ class WorkflowManager:
         self.logger.setLevel(logging.INFO)
         
         self.logger.info("Initializing Workflow Manager...")
-        self.logger.info("Initializing Workflow Manager...")
         self.rag = RAGManager()
         self.engine = InferenceEngine()
         self.advanced = AdvancedEngine(self.rag, self.engine)
         self.cache = SemanticCache(self.rag)
 
-    def process_query(self, query: str, model_name: str = "gemma-3-4b"):
+    async def process_query(self, query: str, model_name: str = "gemma-3-4b"):
         """
         Standard RAG Flow:
-        1. Check Cache
+        1. Check Cache (and get embedding)
         2. Retrieve context (CPU)
         3. Format prompt
         4. Generate response (GPU)
         """
-        # 0. Check Semantic Cache (Fast Path)
-        cached = self.cache.get_cached_response(query)
+        # 0. Check Semantic Cache (Fast Path) - REUSES EMBEDDING
+        cached, embedding = self.cache.get_cached_response(query)
         if cached:
             return {
                 "response": cached,
                 "sources": [{"source": "Semantic Cache"}],
                 "context_used": "Fetched directly from Memory (0ms latency)"
             }
+            
         # 0. Intercept for PoetIQ Variant
         if "(PoetIQ)" in model_name:
             # Strip the tag to get the base model
             base_model = model_name.replace(" (PoetIQ)", "")
             self.logger.info(f"Routing to Deep Reasoning Flow for {base_model}")
             
-            # Since process_query is expected to return a dict synchronous result,
-            # we consume the generator here.
             final_res = ""
             sources = []
             context_used = ""
             
-            # Run the generator
-            for step in self.advanced.run_deep_reasoning_flow(query, base_model):
+            # Use async generator
+            async for step in self.advanced.run_deep_reasoning_flow(query, base_model):
                 if step["step"] == "retrieval" and step["status"] == "done":
                     context_used = step["content"]
                     sources = step.get("sources", [])
@@ -63,9 +63,9 @@ class WorkflowManager:
                 "context_used": context_used + "\n[Processed via PoetIQ System v2]"
             }
 
-        # 1. Retrieval
+        # 1. Retrieval - USE PRE-COMPUTED EMBEDDING
         self.logger.info(f"Retrieving context for: {query}")
-        results = self.rag.search(query, n_results=3)
+        results = self.rag.search(query, n_results=3, query_embedding=embedding)
         
         context_text = ""
         sources = []
@@ -80,9 +80,9 @@ class WorkflowManager:
             f"\n\nCONTEXT:\n{context_text}"
         )
         
-        # 3. Generation
+        # 3. Generation (Async)
         self.logger.info(f"Generating response with model: {model_name}")
-        response = self.engine.generate(
+        response = await self.engine.async_generate(
             model=model_name,
             prompt=query,
             system_context=system_prompt
@@ -99,9 +99,8 @@ class WorkflowManager:
 
     def ingest_file(self, file_path: str):
         """
-        Ingest a file (PDF or TXT) into the vector DB.
+        Ingest a file (PDF or TXT) into the vector DB using Batch Insertion.
         """
-        import os
         filename = os.path.basename(file_path)
         text = ""
         
@@ -118,39 +117,41 @@ class WorkflowManager:
             return f"No text extracted from {filename}"
             
         # Recursive Chunking (Basic)
-        # TODO: Replace with LangChain's RecursiveCharacterTextSplitter for better results
         chunk_size = 1000
         overlap = 100
         chunks = []
         for i in range(0, len(text), chunk_size - overlap):
             chunks.append(text[i:i + chunk_size])
             
-        count = 0
-        import uuid
+        # Prepare Batch
+        texts = []
+        metadatas = []
+        ids = []
+        
         for i, chunk in enumerate(chunks):
             chunk_id = f"{filename}_chunk_{i}_{uuid.uuid4().hex[:8]}"
-            self.rag.add_document(
-                text=chunk, 
-                metadata={"source": filename, "chunk_index": i}, 
-                doc_id=chunk_id
-            )
-            count += 1
+            texts.append(chunk)
+            metadatas.append({"source": filename, "chunk_index": i})
+            ids.append(chunk_id)
             
-        self.logger.info(f"Ingested {count} chunks from {filename}")
-        return f"Successfully ingested {filename} ({count} chunks)"
+        # Batch Ingest
+        self.rag.add_documents(texts=texts, metadatas=metadatas, ids=ids)
+            
+        self.logger.info(f"Ingested {len(chunks)} chunks from {filename}")
+        return f"Successfully ingested {filename} ({len(chunks)} chunks)"
 
-    def run_swarm_flow(self, query: str, model_name: str = "gemma-3-4b") -> Generator[Dict[str, Any], None, None]:
+    async def run_swarm_flow(self, query: str, model_name: str = "gemma-3-4b") -> AsyncGenerator[Dict[str, Any], None]:
         """
-        Executes the Swarm Agentic Loop:
+        Executes the Swarm Agentic Loop (Asynchronous):
         1. Retrieval
         2. Provocateur (Draft)
         3. Critic (Audit)
         4. Synthesizer (Final Polish)
-        
-        Yields intermediate steps for UI visualization.
         """
         # Step 1: Retrieval
         yield {"step": "retrieval", "status": "running", "message": "Searching knowledge base..."}
+        
+        # We also optimize retrieval here (cache check could be added if needed, but keeping swarm pure for now)
         results = self.rag.search(query, n_results=3)
         context_text = ""
         for res in results:
@@ -158,26 +159,27 @@ class WorkflowManager:
         
         yield {"step": "retrieval", "status": "done", "content": context_text, "sources": [r['metadata'] for r in results]}
         
-        # Step 2: Provocateur
-        yield {"step": "provocateur", "status": "running", "message": "🧠 Provocateur is brainstorming..."}
+        # Step 2: Provocateur (The Provocateur drafts an initial response)
+        yield {"step": "provocateur", "status": "running", "message": "Provocateur is drafting initial response..."}
         prompt_p = PROMPT_PROVOCATEUR.format(question=query, context=context_text)
-        draft = self.engine.generate(model=model_name, prompt=prompt_p, options={"temperature": 0.8}) # High temp for creativity
+        draft = await self.engine.async_generate(model=model_name, prompt=prompt_p, options={"temperature": 0.8})
         yield {"step": "provocateur", "status": "done", "content": draft}
         
-        # Step 3: Critic
-        yield {"step": "critic", "status": "running", "message": "🧐 Critic is auditing the draft..."}
+        # Step 3: Critic (The Critic performs an audit of the initial draft)
+        yield {"step": "critic", "status": "running", "message": "Critic is auditing the draft..."}
         prompt_c = PROMPT_CRITIC.format(draft=draft, context=context_text)
-        critique = self.engine.generate(model=model_name, prompt=prompt_c, options={"temperature": 0.1}) # Low temp for precision
+        critique = await self.engine.async_generate(model=model_name, prompt=prompt_c, options={"temperature": 0.1})
         yield {"step": "critic", "status": "done", "content": critique}
         
-        # Step 4: Synthesizer
-        yield {"step": "synthesizer", "status": "running", "message": "✍️ Synthesizer is writing final response..."}
+        # Step 4: Synthesizer (The Synthesizer compiles the final response)
+        yield {"step": "synthesizer", "status": "running", "message": "Synthesizer is writing final response..."}
         prompt_s = PROMPT_SYNTHESIZER.format(question=query, draft=draft, critique=critique)
-        final_response = self.engine.generate(model=model_name, prompt=prompt_s, options={"temperature": 0.3}) # Balanced
+        final_response = await self.engine.async_generate(model=model_name, prompt=prompt_s, options={"temperature": 0.3})
         yield {"step": "synthesizer", "status": "done", "content": final_response}
 
-    def run_poetiq_flow(self, query: str, model_name: str = "gemma-3-4b") -> Generator[Dict[str, Any], None, None]:
+    async def run_poetiq_flow(self, query: str, model_name: str = "gemma-3-4b") -> AsyncGenerator[Dict[str, Any], None]:
         """
         Wrapper for PoetIQ flow.
         """
-        yield from self.advanced.run_poetiq_rag(query, model_name)
+        async for step in self.advanced.run_poetiq_rag(query, model_name):
+            yield step

@@ -60,12 +60,13 @@ class RAGManager:
         # We will assume raw text for now or add prefixes in higher logic if needed.
         return self.embedder.encode(text, convert_to_list=True)
 
-    def add_document(self, text: str, metadata: dict, doc_id: str):
+    def add_document(self, text: str, metadata: dict, doc_id: str, embedding: List[float] = None):
         """Add a document chunk to the vector DB."""
         if not text:
             return False
             
-        embedding = self.embed_text(text)
+        if embedding is None:
+            embedding = self.embed_text(text)
         
         self.collection.add(
             documents=[text],
@@ -75,9 +76,26 @@ class RAGManager:
         )
         return True
 
-    def search(self, query: str, n_results: int = 5):
+    def add_documents(self, texts: List[str], metadatas: List[dict], ids: List[str]):
+        """Add multiple document chunks to the vector DB (Batch Ingestion)."""
+        if not texts:
+            return False
+            
+        # Batch embedding
+        embeddings = self.embedder.encode(texts, convert_to_list=True)
+        
+        self.collection.add(
+            documents=texts,
+            embeddings=embeddings,
+            metadatas=metadatas,
+            ids=ids
+        )
+        return True
+
+    def search(self, query: str, n_results: int = 5, query_embedding: List[float] = None):
         """Search for relevant documents."""
-        query_embedding = self.embedder.encode(query, convert_to_list=True)
+        if query_embedding is None:
+            query_embedding = self.embedder.encode(query, convert_to_list=True)
         
         results = self.collection.query(
             query_embeddings=[query_embedding],

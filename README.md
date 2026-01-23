@@ -1,36 +1,36 @@
-# 🤖 Local Agents RAG System
+# Local Agents RAG System
 
-A local-first, high-performance **Agentic RAG System** designed for privacy, efficiency, and advanced reasoning. This system leverages **Ollama** and **ChromaDB** to provide a complete ecosystem for local LLM experimentation, benchmarking, and multi-agent workflows.
-
----
-
-## 🚀 Overview
-
-The **Local Agents RAG System** is not just another chat interface; it's a sophisticated orchestration layer that separates intensive tasks between CPU and GPU, ensuring optimal performance on consumer hardware. It features a dual UI experience: a benchmarking **Arena** and an agentic conversation **Swarm**.
-
-## ✨ Key Features
-
-### 🏟️ The Arena (Streamlit)
-*   **Model Benchmarking**: Side-by-side comparison of local models.
-*   **Resource Monitoring**: Real-time tracking of VRAM and system usage.
-*   **Elo Rating System**: Automated ranking based on model performance in specific tasks.
-
-### 🐝 The Swarm (Chainlit)
-*   **Advanced Agentic Chat**: Multi-step reasoning and memory-enabled conversations.
-*   **Hybrid Memory**: Persistent storage of context using ChromaDB.
-
-### 🧠 Specialized Workflows (Orchestrator)
-*   **PoetIQ (Cunningham’s Law RAG)**: A unique retrieval technique that generates a "plausible lie" (trap) to trigger more accurate fact correction from the vector database.
-*   **Consensus Engine**: A "Council of Models" architecture where multiple small models (e.g., Gemma, Qwen) vote and a lead agent synthesizes the final consensus.
-*   **Deep Reasoning Flow**: A systemic loop of **Decomposition ➝ Hypothesis ➝ Critique ➝ Verification** to minimize hallucinations and maximize accuracy.
-
-### ⚡ Resource Optimization
-*   **CPU Layer**: Handles document indexing, embedding generation (Sentence Transformers), and cache management.
-*   **GPU Layer**: Focused exclusively on lightning-fast inference using Ollama.
+A high-performance, local-first **Agentic Retrieval-Augmented Generation (RAG) System** developed for privacy, computational efficiency, and sophisticated reasoning. The system integrates **Ollama** and **ChromaDB** to provide a robust environment for local Large Language Model (LLM) experimentation, benchmarking, and multi-agent orchestration.
 
 ---
 
-## 🏗️ Architecture
+## Overview
+
+The **Local Agents RAG System** serves as a sophisticated orchestration layer designed to optimize hardware utilization by segregating intensive tasks between CPU and GPU nodes. This architecture ensures peak performance on consumer-grade hardware. The system provides a dual-interface experience: a benchmarking **Arena** for model evaluation and an agentic **Swarm** for complex conversational workflows.
+
+## Technical Highlights
+
+### Model Benchmarking Arena (Streamlit)
+*   **Performance Benchmarking**: Comparative analysis of local models in side-by-side configurations.
+*   **System Telemetry**: Real-time monitoring of VRAM allocation and general system resource utilization.
+*   **Automated Ranking**: An Elo-based rating system for objective model performance assessment across diverse tasks.
+
+### Multi-Agent Swarm (Chainlit)
+*   **Agentic Orchestration**: Advanced multi-step reasoning capabilities with managed conversational memory.
+*   **Persistent Context**: Contextual data retention utilizing ChromaDB for long-term information recall.
+
+### Advanced Reasoning Architectures
+*   **PoetIQ (Cunningham’s Law RAG)**: A specialized retrieval strategy that leverages generated misconceptions to elicit higher-fidelity factual corrections from the knowledge base.
+*   **Consensus Engine**: A "Council of Models" framework where multiple specialized models collaborate via voting, with a lead agent synthesizing the final output.
+*   **Deep Reasoning Pipeline**: A systemic reasoning loop comprising **Decomposition, Hypothesis Generation, Critique, and Verification** to mitigate hallucinations and ensure factual integrity.
+
+### Performance Optimization
+*   **CPU Optimization**: Dedicated processing for document indexing, high-efficiency embedding generation (via Sentence Transformers), and semantic cache management.
+*   **GPU Acceleration**: Streamlined inference pipelines optimized for Ollama to ensure low-latency response generation.
+
+---
+
+## Architecture
 
 ```mermaid
 graph TD
@@ -43,56 +43,54 @@ graph TD
 
 ---
 
-## 🛠️ Installation
+## Installation and Deployment
 
-### Prerequisites
-- **Python 3.10+**
-- **Ollama** (Make sure the server is running)
-- (Switching to a GPU is highly recommended for Inference)
+### System Requirements
+*   **Python 3.10 or higher**
+*   **Ollama** service active in the environment
+*   **CUDA-compatible GPU** recommended for optimal inference performance
 
-### Steps
-1.  **Clone the repository**:
+### Deployment Steps
+1.  **Clone the Repository**:
     ```bash
     git clone https://github.com/Francisco-cor/Local-agents-rag-system.git
     cd Local-agents-rag-system
     ```
 
-2.  **Install dependencies**:
+2.  **Install Dependencies**:
     ```bash
-    pip install -r requirements.txt
-    # OR if using the provided pyproject.toml
     pip install .
     ```
 
-3.  **Setup Environment**:
-    Create a `.env` file in the root directory (refer to `.env.example`).
+3.  **Environment Configuration**:
+    Initialize a `.env` file in the root directory based on the provided template.
 
 ---
 
-## 🎮 Usage
+## Operational Modes
 
-Launch the main hub to choose your interface:
+The system can be initialized via the central hub:
 
 ```bash
 python launcher.py
 ```
 
-### Modes
-1.  **ARENA**: Best for testing which model handles your specific data better.
-2.  **SWARM**: Best for deep research, complex reasoning, and agent-assisted workflows.
+### Configuration Options
+1.  **Arena Mode**: Optimized for data-driven model comparison and resource benchmarking.
+2.  **Swarm Mode**: Designed for comprehensive research, iterative reasoning, and agent-assisted problem solving.
 
 ---
 
-## 🔬 Advanced Engine Mechanics
+## Research Methodologies
 
-### Cunningham's Law RAG (PoetIQ)
-Instead of searching for a query directly, the system generates a "common misconception" about the topic. By searching for the *correction* of that misconception, the retrieval process often finds more nuanced and factual context that standard semantic search might miss.
-
----
-
-## 📄 License
-This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
+### Enhanced Retrieval (PoetIQ)
+By departing from standard semantic queries, the system introduces a "misconception-driven" retrieval model. Generating a plausible but incorrect statement about a topic triggers the retrieval of corrective factual evidence, often yielding deeper and more relevant context than traditional search methodologies.
 
 ---
 
-*Built with ❤️ for the open-source AI community.*
+## License
+Project distributed under the **MIT License**. Detailed terms can be found in the [LICENSE](LICENSE) file.
+
+---
+
+*Developed for the advancement of local open-source artificial intelligence.*

@@ -2,7 +2,7 @@ import chainlit as cl
 from app.orchestrator.workflow_manager import WorkflowManager
 
 # Initialize Workflow Manager
-# Chainlit reloads per session, so we can init here or in on_chat_start
+# Chainlit reloads per session; WorkflowManager is initialized for the current session.
 workflow = WorkflowManager()
 
 @cl.set_chat_profiles
@@ -10,19 +10,19 @@ async def chat_profile():
     return [
         cl.ChatProfile(
             name="Swarm",
-            markdown_description="**The Swarm**: Provocateur, Critic, and Synthesizer agents.",
-            icon="🐝",
+            markdown_description="**The Swarm**: Orchestrated multi-agent reasoning using Provocateur, Critic, and Synthesizer agents.",
+            icon="https://img.icons8.com/ios-filled/50/000000/bee.png", # Using a URL-based icon instead of emoji if possible, or simple text
         ),
         cl.ChatProfile(
             name="PoetIQ",
-            markdown_description="**PoetIQ**: Uses Cunningham's Law (Traps) for better retrieval.",
-            icon="🎣",
+            markdown_description="**PoetIQ**: Implements Cunningham's Law for optimized factual retrieval.",
+            icon="https://img.icons8.com/ios-filled/50/000000/fishing-hook.png",
         ),
     ]
 
 @cl.on_chat_start
 async def start():
-    # Dynamic Model Loading
+    # Dynamic Model Identification
     models = workflow.engine.get_available_models()
     default_model = models[0] if models else "gemma-3-4b"
 
@@ -37,67 +37,55 @@ async def start():
         ]
     ).send()
 
-    chat_profile = cl.user_session.get("chat_profile")
-    if chat_profile == "PoetIQ":
-         await cl.Message(content=f"**🎣 PoetIQ Active.**\nTraps ready. Using model: {default_model}").send()
+    current_profile = cl.user_session.get("chat_profile")
+    if current_profile == "PoetIQ":
+         await cl.Message(content=f"**PoetIQ Layer Active.**\nContextual retrieval optimized. Active model: {default_model}").send()
     else:
-        await cl.Message(content=f"**🐝 The Swarm is Awake.**\nTeam: Provocateur, Critic, Synthesizer.\nBase Model: {default_model}").send()
+        await cl.Message(content=f"**Multi-Agent Swarm Initialized.**\nAgent Ensemble: Provocateur, Critic, Synthesizer.\nBase Model: {default_model}").send()
     
 @cl.on_message
 async def main(message: cl.Message):
-    # Retrieve settings
+    # Retrieve session settings
     settings = cl.user_session.get("chat_settings")
     model_name = settings["Model"] if settings else "gemma-3-4b" 
-    
-    # We will use Chainlit Steps to show the agents
-    # The workflow.run_swarm_flow yields dictionaries with status/content
     
     final_response = ""
     sources = []
     
-    # We need to map our simple "step names" to Chainlit Step objects to update them
+    # Map internal steps to Chainlit Step objects for UI visualization
     active_steps = {}
     
-    # Running the generator. Since it's sync, it might block the loop slightly. 
-    # ideally we wrap in make_async, but for local prototype direct call is okay-ish or we can use cl.make_async
-    
-    # NOTE: Chainlit's run_sync can be used if needed, or just iterate directly if acceptable.
-    # We will iterate directly for simplicity.
-    
-    
-    # Check Profile
+    # Identify the active chat profile
     chat_profile = cl.user_session.get("chat_profile")
     
     if chat_profile == "PoetIQ":
         iterator = workflow.run_poetiq_flow(message.content, model_name=model_name)
     else:
-        # Default Swarm
+        # Default Multi-Agent Swarm Flow
         iterator = workflow.run_swarm_flow(message.content, model_name=model_name)
     
-    for event in iterator:
+    async for event in iterator:
         step_type = event["step"]
         status = event["status"]
         
-        # Unique key for this step
         step_key = step_type 
         
         if status == "running":
-            # Create a new step
+            # Initiate process step in UI
             step = cl.Step(name=step_type.capitalize(), type="process")
             step.input = event.get("message", "Processing...")
             await step.send()
             active_steps[step_key] = step
             
         elif status == "done":
-            # Complete the step
+            # Finalize process step
             if step_key in active_steps:
                 step = active_steps[step_key]
                 content = event.get("content", "")
                 
-                # Special handling for retrieval to save sources
+                # Retrieval step logic for source extraction
                 if step_type == "retrieval":
                     sources = event.get("sources", [])
-                    # Truncate for display
                     display_text = content[:500] + "..." if len(content) > 500 else content
                     step.output = f"Retrieved Context:\n{display_text}"
                 else:
@@ -105,19 +93,19 @@ async def main(message: cl.Message):
                     
                 await step.update()
                 
-                # If this was the synthesizer, this is our final answer
-                if step_type == "synthesizer":
+                # Capture final response from the synthesizing agent or terminal step
+                if step_type in ["synthesizer", "final_output"]:
                     final_response = content
 
-    # Send Final Message
+    # Transmit final consolidated response
     msg = cl.Message(content=final_response)
     
-    # Attach sources nicely
+    # Format and attach source references
     source_elements = []
     for i, source in enumerate(sources):
-        source_name = source.get("source", "Unknown")
+        source_name = source.get("source", "Unknown Source")
         source_elements.append(
-            cl.Text(name=f"Source {i+1}", content=f"Source: {source_name}", display="inline")
+            cl.Text(name=f"Source {i+1}", content=f"Reference: {source_name}", display="inline")
         )
     
     if source_elements:

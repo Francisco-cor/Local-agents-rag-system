@@ -21,13 +21,10 @@ class InferenceEngine:
 
     def generate(self, model: str, prompt: str, system_context: str = "", options: Dict[str, Any] = None) -> str:
         """
-        Single-shot generation.
+        Single-shot generation (Synchronous).
         """
         if options is None:
-            options = {
-                "temperature": 0.7,
-                "num_ctx": 4096
-            }
+            options = {"temperature": 0.7, "num_ctx": 4096}
             
         messages = []
         if system_context:
@@ -39,22 +36,44 @@ class InferenceEngine:
                 model=model,
                 messages=messages,
                 options=options,
-                keep_alive=0 # Free VRAM after use? Or keep it? The user code had keep_alive=0
+                keep_alive=0
             )
             return response['message']['content']
         except Exception as e:
             self.logger.error(f"Inference Error: {e}")
             return f"Error computing response: {str(e)}"
 
-    def generate_stream(self, model: str, prompt: str, system_context: str = "", options: Dict[str, Any] = None) -> Generator[str, None, None]:
+    async def async_generate(self, model: str, prompt: str, system_context: str = "", options: Dict[str, Any] = None) -> str:
         """
-        Streaming generation.
+        Single-shot generation (Asynchronous).
         """
         if options is None:
-            options = {
-                "temperature": 0.7,
-                "num_ctx": 4096
-            }
+            options = {"temperature": 0.7, "num_ctx": 4096}
+            
+        messages = []
+        if system_context:
+            messages.append({'role': 'system', 'content': system_context})
+        messages.append({'role': 'user', 'content': prompt})
+        
+        try:
+            client = ollama.AsyncClient(host=self.base_url)
+            response = await client.chat(
+                model=model,
+                messages=messages,
+                options=options,
+                keep_alive=0
+            )
+            return response['message']['content']
+        except Exception as e:
+            self.logger.error(f"Async Inference Error: {e}")
+            return f"Error computing response: {str(e)}"
+
+    def generate_stream(self, model: str, prompt: str, system_context: str = "", options: Dict[str, Any] = None) -> Generator[str, None, None]:
+        """
+        Streaming generation (Synchronous).
+        """
+        if options is None:
+            options = {"temperature": 0.7, "num_ctx": 4096}
             
         messages = []
         if system_context:
@@ -76,6 +95,36 @@ class InferenceEngine:
                 
         except Exception as e:
             self.logger.error(f"Inference Stream Error: {e}")
+            yield f"Error computing stream: {str(e)}"
+
+    async def async_generate_stream(self, model: str, prompt: str, system_context: str = "", options: Dict[str, Any] = None):
+        """
+        Streaming generation (Asynchronous).
+        """
+        if options is None:
+            options = {"temperature": 0.7, "num_ctx": 4096}
+            
+        messages = []
+        if system_context:
+            messages.append({'role': 'system', 'content': system_context})
+        messages.append({'role': 'user', 'content': prompt})
+        
+        try:
+            client = ollama.AsyncClient(host=self.base_url)
+            stream = await client.chat(
+                model=model,
+                messages=messages,
+                options=options,
+                stream=True,
+                keep_alive=0
+            )
+            
+            async for chunk in stream:
+                content = chunk['message']['content']
+                yield content
+                
+        except Exception as e:
+            self.logger.error(f"Async Inference Stream Error: {e}")
             yield f"Error computing stream: {str(e)}"
             
     def get_available_models(self) -> List[str]:

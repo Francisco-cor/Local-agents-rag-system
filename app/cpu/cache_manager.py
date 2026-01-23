@@ -24,8 +24,8 @@ class SemanticCache:
         # Note: Chroma uses Distance, not Similarity. 0 = identical. 
         # 0.1 is very close. 0.3 is loosely related.
         
-    def get_cached_response(self, query: str) -> Optional[str]:
-        """Check cache for similar query."""
+    def get_cached_response(self, query: str) -> tuple[Optional[str], Optional[list[float]]]:
+        """Check cache for similar query. Returns (response, embedding)."""
         embedding = self.rag.embed_text(query)
         
         results = self.collection.query(
@@ -34,7 +34,7 @@ class SemanticCache:
         )
         
         if not results['ids'] or not results['ids'][0]:
-            return None
+            return None, embedding
             
         distance = results['distances'][0][0]
         cached_content = results['documents'][0][0]
@@ -43,9 +43,9 @@ class SemanticCache:
         
         if distance < self.threshold:
             self.logger.info("⚡ Cache Hit!")
-            return cached_content
+            return cached_content, embedding
         
-        return None
+        return None, embedding
 
     def cache_response(self, query: str, response: str):
         """Store valid response in cache."""
