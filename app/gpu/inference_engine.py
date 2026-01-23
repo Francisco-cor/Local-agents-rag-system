@@ -18,6 +18,7 @@ class InferenceEngine:
         # Ideally we configure the client, but the current library is a simple wrapper.
         # We assume Ollama is running externally.
         self.base_url = base_url
+        self.async_client = ollama.AsyncClient(host=self.base_url)
 
     def generate(self, model: str, prompt: str, system_context: str = "", options: Dict[str, Any] = None) -> str:
         """
@@ -32,11 +33,12 @@ class InferenceEngine:
         messages.append({'role': 'user', 'content': prompt})
         
         try:
+            self.logger.info(f"Generating (sync) with {model}...")
             response = ollama.chat(
                 model=model,
                 messages=messages,
                 options=options,
-                keep_alive=0
+                keep_alive="5m"
             )
             return response['message']['content']
         except Exception as e:
@@ -56,17 +58,18 @@ class InferenceEngine:
         messages.append({'role': 'user', 'content': prompt})
         
         try:
-            client = ollama.AsyncClient(host=self.base_url)
-            response = await client.chat(
+            self.logger.info(f"Generating (async) with {model}...")
+            response = await self.async_client.chat(
                 model=model,
                 messages=messages,
                 options=options,
-                keep_alive=0
+                keep_alive="5m"
             )
             return response['message']['content']
         except Exception as e:
             self.logger.error(f"Async Inference Error: {e}")
             return f"Error computing response: {str(e)}"
+
 
     def generate_stream(self, model: str, prompt: str, system_context: str = "", options: Dict[str, Any] = None) -> Generator[str, None, None]:
         """
@@ -81,12 +84,13 @@ class InferenceEngine:
         messages.append({'role': 'user', 'content': prompt})
         
         try:
+            self.logger.info(f"Streaming (sync) with {model}...")
             stream = ollama.chat(
                 model=model,
                 messages=messages,
                 options=options,
                 stream=True,
-                keep_alive=0
+                keep_alive="5m"
             )
             
             for chunk in stream:
@@ -110,13 +114,13 @@ class InferenceEngine:
         messages.append({'role': 'user', 'content': prompt})
         
         try:
-            client = ollama.AsyncClient(host=self.base_url)
-            stream = await client.chat(
+            self.logger.info(f"Streaming (async) with {model}...")
+            stream = await self.async_client.chat(
                 model=model,
                 messages=messages,
                 options=options,
                 stream=True,
-                keep_alive=0
+                keep_alive="5m"
             )
             
             async for chunk in stream:
@@ -126,6 +130,7 @@ class InferenceEngine:
         except Exception as e:
             self.logger.error(f"Async Inference Stream Error: {e}")
             yield f"Error computing stream: {str(e)}"
+
             
     def get_available_models(self) -> List[str]:
         """

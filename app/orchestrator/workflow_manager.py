@@ -153,6 +153,7 @@ class WorkflowManager:
         
         # We also optimize retrieval here (cache check could be added if needed, but keeping swarm pure for now)
         results = self.rag.search(query, n_results=3)
+        self.logger.info(f"Swarm: Retrieved {len(results)} chunks.")
         context_text = ""
         for res in results:
             context_text += f"---\n{res['text']}\n"
@@ -183,3 +184,37 @@ class WorkflowManager:
         """
         async for step in self.advanced.run_poetiq_rag(query, model_name):
             yield step
+
+    async def run_simple_flow(self, query: str, model_name: str = "gemma-3-4b") -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Standard RAG Flow as an AsyncGenerator for UI:
+        1. Retrieval
+        2. Generation
+        """
+        # Step 1: Retrieval
+        yield {"step": "retrieval", "status": "running", "message": "Searching knowledge base..."}
+        
+        results = self.rag.search(query, n_results=3)
+        self.logger.info(f"Simple: Retrieved {len(results)} chunks.")
+        context_text = ""
+        for res in results:
+            context_text += f"---\n{res['text']}\n"
+        
+        yield {"step": "retrieval", "status": "done", "content": context_text, "sources": [r['metadata'] for r in results]}
+        
+        # Step 2: Generation
+        yield {"step": "final_output", "status": "running", "message": f"{model_name} is generating answer..."}
+        
+        system_prompt = (
+            "You are a helpful assistant. Use the following context to answer the user's question. "
+            "If the answer is not in the context, say so."
+            f"\n\nCONTEXT:\n{context_text}"
+        )
+        
+        response = await self.engine.async_generate(
+            model=model_name,
+            prompt=query,
+            system_context=system_prompt
+        )
+        
+        yield {"step": "final_output", "status": "done", "content": response}

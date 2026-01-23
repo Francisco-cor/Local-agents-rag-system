@@ -9,14 +9,19 @@ workflow = WorkflowManager()
 async def chat_profile():
     return [
         cl.ChatProfile(
+            name="Simple",
+            markdown_description="**Chat Simple**: Direct interaction with a single model and local context.",
+            icon="https://img.icons8.com/ios-filled/50/ffffff/chat.png",
+        ),
+        cl.ChatProfile(
             name="Swarm",
             markdown_description="**The Swarm**: Orchestrated multi-agent reasoning using Provocateur, Critic, and Synthesizer agents.",
-            icon="https://img.icons8.com/ios-filled/50/000000/bee.png", # Using a URL-based icon instead of emoji if possible, or simple text
+            icon="https://img.icons8.com/ios-filled/50/000000/bee.png",
         ),
         cl.ChatProfile(
             name="PoetIQ",
-            markdown_description="**PoetIQ**: Implements Cunningham's Law for optimized factual retrieval.",
-            icon="https://img.icons8.com/ios-filled/50/000000/fishing-hook.png",
+            markdown_description="**PoetIQ**: Advanced Refinement Loop for high-accuracy factual responses.",
+            icon="https://img.icons8.com/ios-filled/50/ffffff/brain.png",
         ),
     ]
 
@@ -40,15 +45,25 @@ async def start():
 
     current_profile = cl.user_session.get("chat_profile")
     if current_profile == "PoetIQ":
-         await cl.Message(content=f"**PoetIQ Layer Active.**\nRefinement loop enabled. Select model in settings.").send()
+         await cl.Message(content=f"**PoetIQ Layer Active.**\nRefinement loop enabled.\n**Model:** `{default_model}`").send()
+    elif current_profile == "Swarm":
+        await cl.Message(content=f"**Multi-Agent Swarm Initialized.**\nAgent Ensemble: Provocateur, Critic, Synthesizer.\n**Model:** `{default_model}`").send()
     else:
-        await cl.Message(content=f"**Multi-Agent Swarm Initialized.**\nAgent Ensemble: Provocateur, Critic, Synthesizer.").send()
+        await cl.Message(content=f"**Simple Chat Active.**\nDirect model interaction with RAG.\n**Model:** `{default_model}`").send()
+
+@cl.on_settings_update
+async def setup_agent(settings):
+    model = settings["Model"]
+    await cl.Message(content=f"✔️ **Model switched to:** `{model}`").send()
     
 @cl.on_message
 async def main(message: cl.Message):
     # Retrieve session settings (ALWAYS get latest selection)
     settings = cl.user_session.get("chat_settings")
     model_name = settings["Model"] if settings and "Model" in settings else "gemma-3-4b" 
+    
+    # Optional: Send a small indicator of which model is processing this specific message
+    process_msg = await cl.Message(content=f"⚙️ *Processing with `{model_name}`...*").send()
     
     final_response = ""
     sources = []
@@ -61,9 +76,11 @@ async def main(message: cl.Message):
     
     if chat_profile == "PoetIQ":
         iterator = workflow.run_poetiq_flow(message.content, model_name=model_name)
-    else:
-        # Default Multi-Agent Swarm Flow
+    elif chat_profile == "Swarm":
         iterator = workflow.run_swarm_flow(message.content, model_name=model_name)
+    else:
+        # Default Simple Chat Flow
+        iterator = workflow.run_simple_flow(message.content, model_name=model_name)
     
     async for event in iterator:
         step_type = event["step"]
@@ -97,6 +114,9 @@ async def main(message: cl.Message):
                 # Capture final response from the synthesizing agent or terminal step
                 if step_type in ["synthesizer", "final_output"]:
                     final_response = content
+                    if "Error computing" in content:
+                        await cl.Message(content=f"❌ **Inference Error**: {content}").send()
+
 
     # Transmit final consolidated response
     msg = cl.Message(content=final_response)
@@ -113,3 +133,5 @@ async def main(message: cl.Message):
         msg.elements = source_elements
         
     await msg.send()
+    # Clean up the status indicator
+    await process_msg.remove()

@@ -26,6 +26,7 @@ class AdvancedEngine:
         # Step 1: Retrieval
         yield {"step": "retrieval", "status": "running", "message": "🔍 Searching knowledge base..."}
         results = self.rag.search(query, n_results=5)
+        self.logger.info(f"PoetIQ: Retrieved {len(results)} context chunks.")
         context_text = "\n".join([f"---\n{r['text']}" for r in results])
         yield {"step": "retrieval", "status": "done", "content": context_text, "sources": [r['metadata'] for r in results]}
 
@@ -118,6 +119,7 @@ class AdvancedEngine:
         # Step 2: Retrieval for Sub-questions
         yield {"step": "retrieval", "status": "running", "message": "📚 Gathering evidence for plan..."}
         results = self.rag.search(query + "\n" + plan, n_results=5)
+        self.logger.info(f"DeepReasoning: Retrieved {len(results)} context chunks.")
         context_text = "\n".join([f"---\n{r['text']}" for r in results])
         yield {"step": "retrieval", "status": "done", "content": context_text, "sources": [r['metadata'] for r in results]}
         
