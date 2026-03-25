@@ -48,3 +48,23 @@ export interface ArenaBattle {
   winner: string | null;
   timestamp: string;
 }
+
+export interface Debate {
+  id: number;
+  prompt: string;
+  modelA: string;
+  modelB: string;
+  modelC?: string | null;
+  timestamp: string;
+}
+
+export interface DebateTurn {
+  id?: number;
+  debateId?: number;
+  model: string;
+  role: 'A' | 'B' | 'Charlie';
+  turnType: 'ORIGINAL' | 'CRITIQUE' | 'SYNTHESIS' | 'REVIEW' | string;
+  content: string;
+  iteration: number;
+  timestamp?: string;
+}

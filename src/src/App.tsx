@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Library from './pages/Library';
 import Arena from './pages/Arena';
 import TestingArena from './pages/TestingArena';
+import TestingArena2 from './pages/TestingArena2';
 import Swarm from './pages/Swarm';
 import Chat from './pages/Chat';
 
@@ -21,6 +22,7 @@ function AppContent() {
       case '/chat': return 'Direct Chat';
       case '/arena': return 'Arena Mode';
       case '/testing-arena': return 'Testing Arena';
+      case '/testing-arena-2': return 'Testing Arena 2';
       case '/swarm': return 'Swarm Mode';
       default: return 'Local Agents RAG';
     }
@@ -129,6 +131,7 @@ function AppContent() {
             <Route path="/chat/:conversationId" element={<Chat />} />
             <Route path="/arena" element={<Arena />} />
             <Route path="/testing-arena" element={<TestingArena />} />
+            <Route path="/testing-arena-2" element={<TestingArena2 />} />
             <Route path="/swarm" element={<Swarm />} />
           </Routes>
         </main>

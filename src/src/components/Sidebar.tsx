@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Library as LibraryIcon, Swords,
   BrainCircuit, MessageSquareText, Settings, ChevronRight,
-  Cpu, Zap, Folder, FolderOpen, Plus, ChevronDown, ListTree, FlaskConical
+  Cpu, Zap, Folder, FolderOpen, Plus, ChevronDown, ListTree, FlaskConical, ShieldCheck
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
@@ -35,6 +35,7 @@ interface Conversation {
 const NAV_ITEMS = [
   { icon: MessageSquareText, label: 'New Chat',   to: '/chat',    color: '#3b82f6' },  // blue
   { icon: FlaskConical,      label: 'Testing',    to: '/testing-arena', color: '#fbbf24' },  // amber
+  { icon: ShieldCheck,       label: 'Testing 2',  to: '/testing-arena-2', color: '#10b981' }, // green/emerald
   { icon: Swords,            label: 'Arena Mode', to: '/arena',   color: '#ef4444' },  // red
   { icon: BrainCircuit,      label: 'Swarm Mode', to: '/swarm',   color: '#818cf8' },  // indigo
   { icon: LibraryIcon,       label: 'Library',    to: '/library', color: '#22c55e' },  // green
@@ -214,9 +215,11 @@ const Sidebar = ({ isOpen }: SidebarProps) => {
             </div>
           )}
 
-          <NavItem {...NAV_ITEMS[1]} /> {/* Arena */}
-          <NavItem {...NAV_ITEMS[2]} /> {/* Swarm */}
-          <NavItem {...NAV_ITEMS[3]} /> {/* Library */}
+          <NavItem {...NAV_ITEMS[1]} /> 
+          <NavItem {...NAV_ITEMS[2]} /> 
+          <NavItem {...NAV_ITEMS[3]} /> 
+          <NavItem {...NAV_ITEMS[4]} />
+          <NavItem {...NAV_ITEMS[5]} />
         </nav>
 
         {/* Dynamic History Section */}

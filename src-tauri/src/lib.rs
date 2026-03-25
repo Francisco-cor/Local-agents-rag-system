@@ -409,6 +409,65 @@ async fn save_message(
     .map_err(|e| e.to_string())?
 }
 
+#[tauri::command]
+async fn save_debate(
+    prompt: String,
+    modelA: String,
+    modelB: String,
+    modelC: Option<String>,
+    turns: Vec<db::DebateTurn>,
+    state: State<'_, AppState>,
+) -> Result<i32, String> {
+    let db = state.db.clone();
+    tokio::task::spawn_blocking(move || {
+        db.lock()
+            .map_err(|_| "DB lock poisoned".to_string())?
+            .save_debate(prompt, modelA, modelB, modelC, turns)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn get_debate_history(state: State<'_, AppState>) -> Result<Vec<db::Debate>, String> {
+    let db = state.db.clone();
+    tokio::task::spawn_blocking(move || {
+        db.lock()
+            .map_err(|_| "DB lock poisoned".to_string())?
+            .get_debate_history()
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn get_debate_turns(debateId: i32, state: State<'_, AppState>) -> Result<Vec<db::DebateTurn>, String> {
+    let db = state.db.clone();
+    tokio::task::spawn_blocking(move || {
+        db.lock()
+            .map_err(|_| "DB lock poisoned".to_string())?
+            .get_debate_turns(debateId)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn delete_debate(debateId: i32, state: State<'_, AppState>) -> Result<(), String> {
+    let db = state.db.clone();
+    tokio::task::spawn_blocking(move || {
+        db.lock()
+            .map_err(|_| "DB lock poisoned".to_string())?
+            .delete_debate(debateId)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 // ─── App Entry Point ──────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -467,6 +526,10 @@ pub fn run() {
             save_message,
             save_arena_battle,
             get_arena_history,
+            save_debate,
+            get_debate_history,
+            get_debate_turns,
+            delete_debate,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

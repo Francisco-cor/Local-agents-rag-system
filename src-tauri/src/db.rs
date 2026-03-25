@@ -48,6 +48,30 @@ pub struct ArenaBattle {
     pub timestamp: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Debate {
+    pub id: Option<i32>,
+    pub prompt: String,
+    pub model_a: String,
+    pub model_b: String,
+    pub model_c: Option<String>,
+    pub timestamp: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DebateTurn {
+    pub id: Option<i32>,
+    pub debate_id: Option<i32>,
+    pub model: String,
+    pub role: String,
+    pub turn_type: String,
+    pub content: String,
+    pub iteration: i32,
+    pub timestamp: Option<String>,
+}
+
 pub struct DbManager {
     pub conn: Connection,
 }
@@ -144,6 +168,46 @@ impl DbManager {
             println!("DB: Adding response_c to arena_battles");
             let _ = conn.execute("ALTER TABLE arena_battles ADD COLUMN response_c TEXT", []);
         }
+
+        // --- DEBATE HISTORY TABLES ---
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS debate_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                prompt TEXT NOT NULL,
+                model_a TEXT NOT NULL,
+                model_b TEXT NOT NULL,
+                model_c TEXT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )", [],
+        )?;
+
+        // Migration for debate_history model_c
+        let debate_history_cols = {
+            let mut stmt = conn.prepare("PRAGMA table_info(debate_history)")?;
+            let names: Vec<String> = stmt.query_map([], |row| row.get(1))?
+                .filter_map(|r| r.ok())
+                .collect();
+            names
+        };
+
+        if !debate_history_cols.contains(&"model_c".to_string()) {
+             println!("DB: Adding model_c to debate_history");
+             let _ = conn.execute("ALTER TABLE debate_history ADD COLUMN model_c TEXT", []);
+        }
+
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS debate_turns (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                debate_id INTEGER NOT NULL,
+                model TEXT NOT NULL,
+                role TEXT NOT NULL,
+                turn_type TEXT NOT NULL,
+                content TEXT NOT NULL,
+                iteration INTEGER NOT NULL,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (debate_id) REFERENCES debate_history (id) ON DELETE CASCADE
+            )", [],
+        )?;
 
         Ok(Self { conn })
     }
@@ -342,5 +406,83 @@ impl DbManager {
             results.push(row?);
         }
         Ok(results)
+    }
+
+    // --- DEBATE HISTORY METHODS ---
+
+    pub fn save_debate(
+        &self,
+        prompt: String,
+        model_a: String,
+        model_b: String,
+        model_c: Option<String>,
+        turns: Vec<DebateTurn>,
+    ) -> Result<i32> {
+        self.conn.execute(
+            "INSERT INTO debate_history (prompt, model_a, model_b, model_c) VALUES (?1, ?2, ?3, ?4)",
+            params![prompt, model_a, model_b, model_c],
+        )?;
+        let debate_id = self.conn.last_insert_rowid() as i32;
+
+        for turn in turns {
+            self.conn.execute(
+                "INSERT INTO debate_turns (debate_id, model, role, turn_type, content, iteration)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![debate_id, turn.model, turn.role, turn.turn_type, turn.content, turn.iteration],
+            )?;
+        }
+        Ok(debate_id)
+    }
+
+    pub fn get_debate_history(&self) -> Result<Vec<Debate>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, prompt, model_a, model_b, model_c, timestamp FROM debate_history ORDER BY timestamp DESC"
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(Debate {
+                id: Some(row.get(0)?),
+                prompt: row.get(1)?,
+                model_a: row.get(2)?,
+                model_b: row.get(3)?,
+                model_c: row.get(4)?,
+                timestamp: Some(row.get(5)?),
+            })
+        })?;
+
+        let mut results = Vec::new();
+        for row in rows {
+            results.push(row?);
+        }
+        Ok(results)
+    }
+
+    pub fn get_debate_turns(&self, debate_id: i32) -> Result<Vec<DebateTurn>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, debate_id, model, role, turn_type, content, iteration, timestamp 
+             FROM debate_turns WHERE debate_id = ?1 ORDER BY iteration ASC"
+        )?;
+        let rows = stmt.query_map(params![debate_id], |row| {
+            Ok(DebateTurn {
+                id: Some(row.get(0)?),
+                debate_id: Some(row.get(1)?),
+                model: row.get(2)?,
+                role: row.get(3)?,
+                turn_type: row.get(4)?,
+                content: row.get(5)?,
+                iteration: row.get(6)?,
+                timestamp: Some(row.get(7)?),
+            })
+        })?;
+
+        let mut results = Vec::new();
+        for row in rows {
+            results.push(row?);
+        }
+        Ok(results)
+    }
+
+    pub fn delete_debate(&self, debate_id: i32) -> Result<()> {
+        self.conn.execute("DELETE FROM debate_history WHERE id = ?1", params![debate_id])?;
+        Ok(())
     }
 }
