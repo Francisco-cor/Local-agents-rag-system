@@ -1,0 +1,11 @@
+{
+  "name": "local-agents-rust",
+  "private": true,
+  "scripts": {
+    "tauri": "npm --prefix src run tauri"
+  },
+  "dependencies": {
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
+  }
+}

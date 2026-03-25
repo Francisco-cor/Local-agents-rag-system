@@ -1,96 +1,139 @@
-# Local Agents RAG System
+# Local Agents
 
-A high-performance, local-first **Agentic Retrieval-Augmented Generation (RAG) System** developed for privacy, computational efficiency, and sophisticated reasoning. The system integrates **Ollama** and **ChromaDB** to provide a robust environment for local Large Language Model (LLM) experimentation, benchmarking, and multi-agent orchestration.
-
----
-
-## Overview
-
-The **Local Agents RAG System** serves as a sophisticated orchestration layer designed to optimize hardware utilization by segregating intensive tasks between CPU and GPU nodes. This architecture ensures peak performance on consumer-grade hardware. The system provides a dual-interface experience: a benchmarking **Arena** for model evaluation and an agentic **Swarm** for complex conversational workflows.
-
-## Technical Highlights
-
-### Model Benchmarking Arena (Streamlit)
-*   **Performance Benchmarking**: Comparative analysis of local models in side-by-side configurations.
-*   **System Telemetry**: Real-time monitoring of VRAM allocation and general system resource utilization.
-*   **Automated Ranking**: An Elo-based rating system for objective model performance assessment across diverse tasks.
-
-### Multi-Agent Swarm (Chainlit)
-*   **Agentic Orchestration**: Advanced multi-step reasoning capabilities with managed conversational memory.
-*   **Persistent Context**: Contextual data retention utilizing ChromaDB for long-term information recall.
-
-### Advanced Reasoning Architectures
-*   **PoetIQ (Cunningham’s Law RAG)**: A specialized retrieval strategy that leverages generated misconceptions to elicit higher-fidelity factual corrections from the knowledge base.
-*   **Consensus Engine**: A "Council of Models" framework where multiple specialized models collaborate via voting, with a lead agent synthesizing the final output.
-*   **Deep Reasoning Pipeline**: A systemic reasoning loop comprising **Decomposition, Hypothesis Generation, Critique, and Verification** to mitigate hallucinations and ensure factual integrity.
-
-### Performance Optimization
-*   **CPU Optimization**: Dedicated processing for document indexing, high-efficiency embedding generation (via Sentence Transformers), and semantic cache management.
-*   **GPU Acceleration**: Streamlined inference pipelines optimized for Ollama to ensure low-latency response generation.
+A privacy-first desktop application for local LLM orchestration, multi-agent workflows, and Retrieval-Augmented Generation (RAG). Built entirely in **Rust + Tauri**, with **Ollama** as the inference backend.
 
 ---
 
 ## Architecture
 
-```mermaid
-graph TD
-    UI[User Interface: Arena/Swarm] --> ORCH[Orchestrator]
-    ORCH --> CPU[CPU: RAG & Cache Manager]
-    ORCH --> GPU[GPU: Inference Engine]
-    CPU --> DB[(ChromaDB)]
-    GPU --> OLLAMA[Ollama API]
+```
+┌─────────────────────────────────┐
+│   Frontend  (Vite / React / TS) │
+└────────────────┬────────────────┘
+                 │ Tauri IPC
+┌────────────────▼────────────────┐
+│   Rust Backend  (Tauri 2)       │
+│                                 │
+│  ┌──────────┐  ┌─────────────┐  │
+│  │ Workflow  │  │  RAGManager │  │
+│  │ Manager  │  │  (SQLite)   │  │
+│  └────┬─────┘  └──────┬──────┘  │
+│       │               │         │
+│  ┌────▼───────────────▼──────┐  │
+│  │      InferenceEngine      │  │
+│  │   (Ollama HTTP client)    │  │
+│  └───────────────────────────┘  │
+│                                 │
+│  ┌──────────┐  ┌─────────────┐  │
+│  │  Arena   │  │  DbManager  │  │
+│  │ (ELO)   │  │  (SQLite)   │  │
+│  └──────────┘  └─────────────┘  │
+└─────────────────────────────────┘
+         │
+         ▼
+   Ollama  (localhost or remote)
 ```
 
 ---
 
-## Installation and Deployment
+## Features
 
-### System Requirements
-*   **Python 3.10 or higher**
-*   **Ollama** service active in the environment
-*   **CUDA-compatible GPU** recommended for optimal inference performance
+### Multi-Agent Swarm
+A three-stage reasoning pipeline per query:
+1. **Provocateur** — generates an initial draft using retrieved context
+2. **Critic** — audits the draft for errors and gaps
+3. **Synthesizer** — produces the final, refined answer
 
-### Deployment Steps
-1.  **Clone the Repository**:
-    ```bash
-    git clone https://github.com/Francisco-cor/Local-agents-rag-system.git
-    cd Local-agents-rag-system
-    ```
+### PoetIQ Flow
+A two-step hypothesis workflow: retrieves context first, then generates a focused response.
 
-2.  **Install Dependencies**:
-    ```bash
-    pip install .
-    ```
+### RAG (Retrieval-Augmented Generation)
+SQLite-backed vector store — no external toolchain required. Embeddings are generated via `nomic-embed-text` through Ollama and stored as binary blobs. Similarity search uses cosine distance computed in Rust.
 
-3.  **Environment Configuration**:
-    Initialize a `.env` file in the root directory based on the provided template.
+### Arena (ELO Leaderboard)
+Side-by-side model battles with persistent ELO ratings stored to disk.
+
+### Chat (Raw Mode)
+Direct streaming chat with any Ollama model, with full conversation history backed by SQLite.
+
+### Configurable Ollama Endpoint
+The Ollama URL can be changed at runtime via `set_ollama_url` — connect to a local instance, a LAN server, or a cloud-hosted endpoint without rebuilding.
 
 ---
 
-## Operational Modes
+## Requirements
 
-The system can be initialized via the central hub:
+| Dependency | Purpose |
+|---|---|
+| [Rust](https://rustup.rs/) 1.77+ | Backend and desktop runtime |
+| [Node.js](https://nodejs.org/) 18+ | Frontend build |
+| [Ollama](https://ollama.com/) | LLM inference |
+| `nomic-embed-text` model | RAG embeddings |
+
+**No Python. No LLVM. No Go toolchain required.**
+
+---
+
+## Getting Started
 
 ```bash
-python launcher.py
+# 1. Clone
+git clone https://github.com/Francisco-cor/Local-agents-rag-system.git
+cd Local-agents-rag-system
+
+# 2. Pull required Ollama models
+ollama pull nomic-embed-text
+ollama pull llama3.2   # or any model you prefer
+
+# 3. Install frontend dependencies
+cd src
+npm install
+
+# 4. Run in development mode
+npm run tauri dev
 ```
 
-### Configuration Options
-1.  **Arena Mode**: Optimized for data-driven model comparison and resource benchmarking.
-2.  **Swarm Mode**: Designed for comprehensive research, iterative reasoning, and agent-assisted problem solving.
+### Build for production
+
+```bash
+cd src
+npm run tauri build
+```
 
 ---
 
-## Research Methodologies
+## Tauri Commands (Backend API)
 
-### Enhanced Retrieval (PoetIQ)
-By departing from standard semantic queries, the system introduces a "misconception-driven" retrieval model. Generating a plausible but incorrect statement about a topic triggers the retrieval of corrective factual evidence, often yielding deeper and more relevant context than traditional search methodologies.
+| Command | Description |
+|---|---|
+| `get_ollama_url` | Returns the current Ollama endpoint URL |
+| `set_ollama_url(url)` | Updates the Ollama endpoint at runtime |
+| `get_models` | Lists available Ollama models |
+| `run_swarm(query, model)` | Runs the Provocateur → Critic → Synthesizer pipeline |
+| `run_poetiq(query, model)` | Runs the PoetIQ hypothesis workflow |
+| `run_raw(query, model, conversation_id?)` | Streams a direct chat response |
+| `run_battle(query, model_a, model_b)` | Runs a side-by-side model battle |
+| `ingest_data(file_path)` | Chunks a file and indexes it into the RAG vector store |
+| `get_leaderboard` | Returns the ELO leaderboard |
+| `record_battle(model_a, model_b, outcome)` | Records a battle result and updates ELO |
+| `get_workspaces / create_workspace` | Workspace management |
+| `get_folders / create_folder` | Folder management |
+| `get_conversations / create_conversation` | Conversation management |
+| `get_messages / save_message` | Message persistence |
+
+---
+
+## Verification
+
+Run the built-in verification binary to check Ollama connectivity, RAG indexing/search, and ELO calculations:
+
+```bash
+cd src-tauri
+cargo run --bin verify
+```
 
 ---
 
 ## License
-Project distributed under the **MIT License**. Detailed terms can be found in the [LICENSE](LICENSE) file.
 
----
-
-*Developed for the advancement of local open-source artificial intelligence.*
+MIT — see [LICENSE](LICENSE).

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agent Station</title>
+  </head>
+  <body style="background-color: #161618; color: #ededf2; font-family: 'DM Sans', sans-serif;">
+    <div id="root">
+      <div id="loading-overlay" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 20px;">
+        <div style="font-size: 1.2rem;">Loading Local AI Agent Station...</div>
+        <div id="error-display" style="color: #ef4444; font-size: 0.9rem; max-width: 80%; text-align: center; font-family: monospace; white-space: pre-wrap;"></div>
+      </div>
+    </div>
+    <script>
+      window.onerror = function(msg, url, lineNo, columnNo, error) {
+        const display = document.getElementById('error-display');
+        if (display) {
+          display.innerText = "Runtime Error: " + msg + "\nAt: " + url + ":" + lineNo + ":" + columnNo;
+        }
+        return false;
+      };
+      console.log("Index.html: Scripts starting...");
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

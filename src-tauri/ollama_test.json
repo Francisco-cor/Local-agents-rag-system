@@ -1,0 +1,7 @@
+{
+  "model": "qwen3-vl:4b",
+  "messages": [
+    { "role": "user", "content": "hi" }
+  ],
+  "stream": false
+}

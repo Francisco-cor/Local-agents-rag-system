@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run:*)",
+      "Bash(grep -n \"\\\\.clone\\(\\)\" /d/GitHub/Local-Agents-Rust/src-tauri/src/*.rs)",
+      "Bash(cargo check:*)"
+    ]
+  }
+}
